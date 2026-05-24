@@ -4,25 +4,6 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Added
-
-- **Target resolution** — the operator now resolves a policy's `spec.target`
-  (label selector × kinds) into concrete cluster resources at trigger time and
-  runs the action pipeline against each match, so resource-operating plugins
-  (`k8s.annotate`, `argocd.suspend`) act on the selected resources rather than a
-  namespace-only placeholder. The `maxResources` cap is enforced: a selector
-  matching more resources than allowed refuses to act instead of fanning out.
-  Each trigger still produces a single `ActionAudit` (one record per action ×
-  matched target), keeping the rate limit and audit history aligned with
-  triggers.
-
-### Changed
-
-- The broad `*/*` RBAC grant now also includes `list` (alongside `get`, `patch`,
-  `update`) so the controller can enumerate target resources by selector.
-
 ## [0.1.0] - 2026-05-24
 
 First public release. A Kubernetes operator and CLI that turn sustained
@@ -34,6 +15,9 @@ Prometheus metric conditions into deterministic, auditable action pipelines.
   thresholds over a sustained duration, and runs an ordered action pipeline with
   per-action failure policies (continue/stop/rollback), cooldown, and a rolling
   hourly rate limit.
+- **Target resolution** — resolves a policy's target selector × kinds into
+  concrete cluster resources at trigger time and runs the pipeline against each
+  match, enforcing the `maxResources` safety cap.
 - **`ReactivePolicy` CRD** — metric source, threshold/operator/duration, target
   selector, action pipeline, cooldown, `maxTriggersPerHour`, `allowIrreversible`,
   and audit retention.

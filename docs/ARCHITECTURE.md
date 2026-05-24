@@ -86,7 +86,7 @@ The reconciliation loop for a single `ReactivePolicy`:
 ```
 
 Step 6 is critical for the audit trail. Even if action execution fails halfway,
-we MUST write what happened before the reconcile returns.
+the controller MUST write what happened before the reconcile returns.
 
 ## 3. Plugin architecture
 

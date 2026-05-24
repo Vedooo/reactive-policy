@@ -70,13 +70,13 @@ make build-cli   # rp CLI   -> bin/rp
 
 ## Code review process
 
-- Maintainers review within 5 working days
+- I review pull requests within 5 working days
 - Small PRs get faster reviews
 - CI must be green before review
 
 ## Conduct
 
-Follow the [Contributor Covenant](https://www.contributor-covenant.org/version/2/1/code_of_conduct/).
+Follow the project's [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Reporting security issues
 
