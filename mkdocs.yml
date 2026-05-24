@@ -47,7 +47,8 @@ markdown_extensions:
   - tables
   - pymdownx.details
   - pymdownx.inlinehilite
-  - pymdownx.snippets
+  - pymdownx.snippets:
+      base_path: ["."]
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.superfences:
@@ -77,6 +78,7 @@ nav:
       - Plugin development: PLUGIN_INTERFACE.md
       - CRD specification: CRD_SPEC.md
   - Observability: observability.md
+  - Changelog: changelog.md
   - Reference:
       - Architecture: ARCHITECTURE.md
       - Design decisions: DECISIONS.md

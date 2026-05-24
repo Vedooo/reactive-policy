@@ -49,5 +49,5 @@ things worth knowing when assessing risk:
 
 ## Disclosure
 
-We follow coordinated disclosure. Once a fix is available we will publish a
+I follow coordinated disclosure. Once a fix is available I'll publish a
 GitHub Security Advisory and credit the reporter unless anonymity is requested.

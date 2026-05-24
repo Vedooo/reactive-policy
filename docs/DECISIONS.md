@@ -64,7 +64,7 @@ structured data), database (operational nightmare).
 **Context:** Naming the CRD shapes user mental model.
 
 **Decision:** `ReactivePolicy`. "Policy" matches K8s vocabulary. "Reactive"
-captures intent. Short names `rp`, `rpolicy` available. Doesn't lock us into
+captures intent. Short names `rp`, `rpolicy` available. Doesn't lock the project into
 metrics-only signals.
 
 **Alternatives:** `MetricAction` (too narrow), `ObservedPolicy` (vaguer),
