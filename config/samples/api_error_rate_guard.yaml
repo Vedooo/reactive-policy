@@ -1,0 +1,55 @@
+apiVersion: reactive-policy.io/v1alpha1
+kind: ReactivePolicy
+metadata:
+  name: api-error-rate-guard
+  labels:
+    app.kubernetes.io/name: reactive-policy
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  target:
+    selector:
+      matchLabels:
+        app: api-service
+    kinds:
+      - apiVersion: argoproj.io/v1alpha1
+        kind: Application
+    maxResources: 5
+
+  observe:
+    source: prometheus
+    endpoint: http://prometheus.monitoring:9090
+    query: |
+      sum(rate(http_requests_total{app="api-service",status=~"5.."}[2m]))
+      / sum(rate(http_requests_total{app="api-service"}[2m]))
+    threshold: "0.05"
+    operator: GreaterThan
+    duration: 2m
+    pollInterval: 30s
+
+  actions:
+    - plugin: argocd.suspend
+      params:
+        reason: "auto-suspended by reactive-policy"
+      onFailure: stop
+
+    - plugin: k8s.annotate
+      params:
+        key: "reactive-policy.io/last-trigger"
+        value: "{{ .Timestamp }} value={{ .MetricValue }}"
+      onFailure: continue
+
+    - plugin: notify.slack
+      params:
+        webhookSecretRef:
+          name: slack-webhook
+          key: url
+        channel: "#sre-alerts"
+        severity: warning
+      onFailure: continue
+
+  cooldown: 10m
+  maxTriggersPerHour: 3
+  allowIrreversible: false
+
+  audit:
+    retention: 30d

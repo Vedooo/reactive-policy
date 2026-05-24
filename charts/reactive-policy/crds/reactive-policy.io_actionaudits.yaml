@@ -1,0 +1,261 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.4
+  name: actionaudits.reactive-policy.io
+spec:
+  group: reactive-policy.io
+  names:
+    kind: ActionAudit
+    listKind: ActionAuditList
+    plural: actionaudits
+    shortNames:
+    - aa
+    - audit
+    singular: actionaudit
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.policyRef
+      name: Policy
+      type: string
+    - jsonPath: .spec.triggeredAt
+      name: Triggered
+      type: date
+    - jsonPath: .status.reverted
+      name: Reverted
+      type: boolean
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          ActionAudit is the auditable record of one ReactivePolicy trigger and every
+          action it ran (see ADR-003). Records are queryable history and the source of
+          truth for restart-safe rate limiting (ADR-009).
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: |-
+              ActionAuditSpec is the immutable record of one policy trigger and the actions
+              it ran. The operator writes it once; the only mutable field is
+              RevertRequested, which the CLI sets to ask the operator to undo the actions.
+            properties:
+              actions:
+                description: Actions is the ordered set of action outcomes for this
+                  trigger.
+                items:
+                  description: |-
+                    ActionRecord is the immutable outcome of a single action in a triggered
+                    pipeline. Details carries plugin-specific data needed to reverse the action.
+                  properties:
+                    actionID:
+                      description: ActionID is the executor-assigned identifier for
+                        this execution.
+                      type: string
+                    details:
+                      description: |-
+                        Details is the plugin-specific payload recorded at execution time. The
+                        operator passes it back to the plugin's Reverse on revert.
+                      x-kubernetes-preserve-unknown-fields: true
+                    index:
+                      description: Index is the action's zero-based position in the
+                        policy pipeline.
+                      format: int32
+                      type: integer
+                    message:
+                      description: Message is a human-readable summary of the outcome.
+                      type: string
+                    plugin:
+                      description: Plugin is the registered plugin name that ran,
+                        e.g. "argocd.suspend".
+                      type: string
+                    reversible:
+                      description: Reversible reports whether the plugin that ran
+                        supports reversal.
+                      type: boolean
+                    status:
+                      description: 'Status is the action''s terminal state: Succeeded,
+                        Failed, or Skipped.'
+                      type: string
+                    target:
+                      description: Target is the resource the action operated on.
+                      properties:
+                        apiVersion:
+                          description: APIVersion is the group/version of the target,
+                            e.g. "argoproj.io/v1alpha1".
+                          type: string
+                        kind:
+                          description: Kind is the target resource kind.
+                          type: string
+                        name:
+                          description: Name is the target resource name.
+                          type: string
+                        namespace:
+                          description: Namespace is the target resource namespace.
+                          type: string
+                      type: object
+                  required:
+                  - index
+                  - plugin
+                  - status
+                  type: object
+                type: array
+              metricValue:
+                description: MetricValue is the observed value that crossed the threshold.
+                type: string
+              policyRef:
+                description: |-
+                  PolicyRef is the name of the ReactivePolicy that triggered. The record
+                  lives in the same namespace as the policy.
+                type: string
+              policyUID:
+                description: PolicyUID disambiguates records when a policy is deleted
+                  and recreated.
+                type: string
+              revertRequested:
+                description: |-
+                  RevertRequested asks the operator to reverse this record's reversible
+                  actions. Set by `rp action revert`; cleared semantics are one-shot — the
+                  operator records the outcome in status and does not act twice.
+                type: boolean
+              triggeredAt:
+                description: |-
+                  TriggeredAt is the shared timestamp of the trigger that produced the
+                  pipeline. Rate limiting counts records by this time (ADR-009).
+                format: date-time
+                type: string
+            required:
+            - actions
+            - policyRef
+            - triggeredAt
+            type: object
+          status:
+            description: |-
+              ActionAuditStatus records the result of a revert request. It is empty until a
+              revert is requested and processed by the operator.
+            properties:
+              conditions:
+                description: Conditions is the standard set of condition objects for
+                  the record.
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              revertResults:
+                description: RevertResults is the per-action outcome of the reversal.
+                items:
+                  description: RevertResult is the per-action outcome of a reversal
+                    attempt.
+                  properties:
+                    index:
+                      description: Index is the action's position in the original
+                        pipeline.
+                      format: int32
+                      type: integer
+                    message:
+                      description: Message is a human-readable summary of the reversal.
+                      type: string
+                    plugin:
+                      description: Plugin is the plugin name that was reversed.
+                      type: string
+                    status:
+                      description: 'Status is the reversal outcome: Succeeded, Skipped,
+                        or Failed.'
+                      type: string
+                  required:
+                  - index
+                  - plugin
+                  - status
+                  type: object
+                type: array
+              reverted:
+                description: |-
+                  Reverted is true once the operator has processed a revert request for this
+                  record, regardless of per-action success.
+                type: boolean
+              revertedAt:
+                description: RevertedAt is when the operator processed the revert
+                  request.
+                format: date-time
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

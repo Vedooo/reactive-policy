@@ -1,0 +1,28 @@
+{{- if and .Values.serviceMonitor.enabled .Values.metrics.enabled -}}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "reactive-policy.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "reactive-policy.labels" . | nindent 4 }}
+    {{- with .Values.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "reactive-policy.selectorLabels" . | nindent 6 }}
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  endpoints:
+    - port: metrics
+      scheme: {{ if .Values.metrics.secure }}https{{ else }}http{{ end }}
+      interval: {{ .Values.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.serviceMonitor.scrapeTimeout }}
+      {{- if .Values.metrics.secure }}
+      tlsConfig:
+        insecureSkipVerify: true
+      {{- end }}
+{{- end }}

@@ -1,0 +1,9 @@
+/* Center Mermaid diagrams on the page */
+.mermaid {
+  text-align: center;
+}
+
+.mermaid svg {
+  margin-left: auto;
+  margin-right: auto;
+}

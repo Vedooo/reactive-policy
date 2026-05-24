@@ -1,0 +1,83 @@
+site_name: reactive-policy
+site_description: >-
+  Turn sustained Prometheus metric conditions into deterministic, auditable,
+  reversible Kubernetes & GitOps actions.
+site_url: https://vedooo.github.io/reactive-policy/
+repo_url: https://github.com/Vedooo/reactive-policy
+repo_name: Vedooo/reactive-policy
+edit_uri: edit/main/docs/
+copyright: Copyright &copy; 2026 Vedat Koçoğlu — Apache 2.0
+
+theme:
+  name: material
+  logo: assets/logo-white.svg
+  favicon: assets/logo.svg
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.tracking
+    - navigation.instant
+    - content.code.copy
+    - content.code.annotate
+    - search.suggest
+    - search.highlight
+    - toc.follow
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  icon:
+    repo: fontawesome/brands/github
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - pymdownx.details
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - toc:
+      permalink: true
+
+plugins:
+  - search
+
+extra_css:
+  - stylesheets/extra.css
+
+nav:
+  - Home: index.md
+  - Concepts: concepts.md
+  - Installation: installation.md
+  - Quickstart: quickstart.md
+  - CLI reference: cli.md
+  - Writing policies:
+      - Plugins: plugins.md
+      - Plugin development: PLUGIN_INTERFACE.md
+      - CRD specification: CRD_SPEC.md
+  - Observability: observability.md
+  - Reference:
+      - Architecture: ARCHITECTURE.md
+      - Design decisions: DECISIONS.md
+      - Roadmap: ROADMAP.md

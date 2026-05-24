@@ -1,0 +1,55 @@
+apiVersion: v2
+name: reactive-policy
+description: >-
+  Turn observed metrics into deterministic, auditable Kubernetes and GitOps
+  actions. A Kubernetes operator that watches Prometheus metrics and runs a
+  pipeline of pluggable actions when a threshold is sustained.
+type: application
+
+# version is the chart version (semver). Bumped on any chart change.
+version: 0.1.0
+
+# appVersion is the reactive-policy release the chart deploys by default. It is
+# used as the container image tag when image.tag is left empty.
+appVersion: "0.1.0"
+
+home: https://github.com/Vedooo/reactive-policy
+icon: https://raw.githubusercontent.com/Vedooo/reactive-policy/main/docs/assets/logo.svg
+sources:
+  - https://github.com/Vedooo/reactive-policy
+keywords:
+  - operator
+  - prometheus
+  - gitops
+  - argocd
+  - sre
+  - automation
+maintainers:
+  - name: Vedat Koçoğlu
+    url: https://github.com/Vedooo
+annotations:
+  artifacthub.io/license: Apache-2.0
+  artifacthub.io/operator: "true"
+  artifacthub.io/operatorCapabilities: basic install
+  artifacthub.io/category: integration-delivery
+  artifacthub.io/links: |
+    - name: Documentation
+      url: https://vedooo.github.io/reactive-policy
+    - name: Source
+      url: https://github.com/Vedooo/reactive-policy
+    - name: Changelog
+      url: https://github.com/Vedooo/reactive-policy/blob/main/CHANGELOG.md
+  artifacthub.io/images: |
+    - name: reactive-policy
+      image: ghcr.io/vedooo/reactive-policy:0.1.0
+  artifacthub.io/crds: |
+    - kind: ReactivePolicy
+      version: v1alpha1
+      name: reactivepolicies.reactive-policy.io
+      displayName: Reactive Policy
+      description: A metric-triggered, auditable, reversible action policy.
+    - kind: ActionAudit
+      version: v1alpha1
+      name: actionaudits.reactive-policy.io
+      displayName: Action Audit
+      description: An audit record describing one policy trigger.

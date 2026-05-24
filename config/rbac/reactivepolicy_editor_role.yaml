@@ -1,0 +1,27 @@
+# permissions for end users to edit reactivepolicies.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: reactive-policy
+    app.kubernetes.io/managed-by: kustomize
+  name: reactivepolicy-editor-role
+rules:
+- apiGroups:
+  - reactive-policy.io
+  resources:
+  - reactivepolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - reactive-policy.io
+  resources:
+  - reactivepolicies/status
+  verbs:
+  - get

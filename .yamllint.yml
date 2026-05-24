@@ -1,0 +1,30 @@
+---
+# yamllint configuration for reactive-policy.
+# Loose enough not to fight Kubernetes/Helm manifests, strict on real errors.
+extends: default
+
+yaml-files:
+  - "*.yaml"
+  - "*.yml"
+
+rules:
+  line-length:
+    max: 200
+    level: warning
+  truthy:
+    # GitHub Actions uses `on:`; don't flag it.
+    check-keys: false
+  document-start: disable
+  comments:
+    min-spaces-from-content: 1
+  indentation:
+    spaces: 2
+    # Kubebuilder/kustomize manifests mix sequence indent styles; don't fight it.
+    indent-sequences: whatever
+  braces:
+    max-spaces-inside: 1
+  brackets:
+    max-spaces-inside: 1
+
+ignore: |
+  charts/

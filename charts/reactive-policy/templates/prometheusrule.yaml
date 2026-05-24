@@ -1,0 +1,70 @@
+{{- if .Values.prometheusRule.enabled -}}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "reactive-policy.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "reactive-policy.labels" . | nindent 4 }}
+    {{- with .Values.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: reactive-policy.rules
+      rules:
+        - alert: ReactivePolicyOperatorDown
+          expr: up{job=~".*reactive-policy.*"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: reactive-policy operator is down
+            description: >-
+              The reactive-policy operator metrics endpoint (job {{ "{{ $labels.job }}" }})
+              has been unscrapeable for 5 minutes. Policies are not being evaluated.
+        - alert: HighActionFailureRate
+          expr: |
+            sum(rate(reactive_policy_actions_total{result="Failed"}[5m]))
+              /
+            sum(rate(reactive_policy_actions_total[5m]))
+              > 0.5
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: High reactive-policy action failure rate
+            description: >-
+              More than 50% of action executions have failed over the last 5
+              minutes. Inspect ActionAudit records and plugin permissions.
+        - alert: PolicyRateLimitHit
+          expr: sum by (namespace) (increase(reactive_policy_rate_limited_total[10m])) > 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: A reactive-policy is hitting its rate limit
+            description: >-
+              Policies in namespace {{ "{{ $labels.namespace }}" }} hit their
+              maxTriggersPerHour cap in the last 10 minutes.
+        - alert: HighPrometheusQueryErrorRate
+          expr: rate(reactive_policy_prometheus_query_errors_total[5m]) > 0.1
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: reactive-policy metric-source queries are failing
+            description: >-
+              The operator is failing more than 0.1 metric-source queries per
+              second over the last 5 minutes; check endpoint reachability and auth.
+        - alert: PluginValidationFailing
+          expr: sum by (plugin) (increase(reactive_policy_plugin_validation_errors_total[15m])) > 0
+          for: 15m
+          labels:
+            severity: info
+          annotations:
+            summary: reactive-policy plugin validation failures
+            description: >-
+              Plugin {{ "{{ $labels.plugin }}" }} rejected policy parameters at
+              admission in the last 15 minutes.
+{{- end }}

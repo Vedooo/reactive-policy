@@ -1,0 +1,32 @@
+reactive-policy {{ .Chart.AppVersion }} is installed in namespace {{ .Release.Namespace }}.
+
+The operator is now watching ReactivePolicy resources across the cluster.
+
+1. Check the operator is running:
+
+   kubectl -n {{ .Release.Namespace }} rollout status deploy/{{ include "reactive-policy.fullname" . }}
+
+2. Apply a sample policy:
+
+   kubectl apply -f https://raw.githubusercontent.com/Vedooo/reactive-policy/main/config/samples/api_error_rate_guard.yaml
+
+3. Inspect it with the rp CLI:
+
+   rp policy list -A
+   rp action audit --since 1h
+   rp plugin list
+
+{{- if .Values.metrics.enabled }}
+
+Metrics are exposed on port {{ .Values.metrics.port }} of service
+{{ include "reactive-policy.fullname" . }}-metrics ({{ if .Values.metrics.secure }}https{{ else }}http{{ end }}).
+{{- if not .Values.serviceMonitor.enabled }}
+Set serviceMonitor.enabled=true to scrape them with the Prometheus Operator.
+{{- end }}
+{{- end }}
+{{- if not .Values.webhook.enabled }}
+
+NOTE: the validating admission webhook is disabled (webhook.enabled=false).
+Invalid policies will be caught at reconcile time rather than rejected at
+admission. Enable the webhook with cert-manager for admission-time validation.
+{{- end }}

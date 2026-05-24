@@ -1,0 +1,4 @@
+## Append samples of your project ##
+resources:
+- api_error_rate_guard.yaml
+# +kubebuilder:scaffold:manifestskustomizesamples

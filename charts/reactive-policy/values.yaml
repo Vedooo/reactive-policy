@@ -1,0 +1,115 @@
+# Default values for reactive-policy.
+# Every value below is documented inline. Override with `--set` or a custom
+# values file: `helm install reactive-policy ... -f my-values.yaml`.
+
+# -- Number of operator replicas. Leader election ensures only one is active at
+# a time, so values >1 give warm standby for HA without split-brain.
+replicaCount: 1
+
+image:
+  # -- Operator container image repository.
+  repository: ghcr.io/vedooo/reactive-policy
+  # -- Image pull policy.
+  pullPolicy: IfNotPresent
+  # -- Image tag. Defaults to the chart's appVersion when left empty.
+  tag: ""
+
+# -- Image pull secrets for private registries.
+imagePullSecrets: []
+
+# -- Override the chart name used in resource names.
+nameOverride: ""
+# -- Override the fully-qualified release name used in resource names.
+fullnameOverride: ""
+
+serviceAccount:
+  # -- Create a ServiceAccount for the operator.
+  create: true
+  # -- Annotations to add to the ServiceAccount (e.g. IRSA / Workload Identity).
+  annotations: {}
+  # -- ServiceAccount name. Generated from the release name when empty.
+  name: ""
+
+rbac:
+  # -- Create the ClusterRole/ClusterRoleBinding the operator needs. The
+  # ClusterRole aggregates every built-in plugin's required permissions
+  # (docs/ARCHITECTURE.md §3.3). Disable only if you manage RBAC out of band.
+  create: true
+
+# -- Pod-level annotations (e.g. for scraping or config-hash rollouts).
+podAnnotations: {}
+# -- Pod-level labels.
+podLabels: {}
+
+# -- Pod security context applied to the operator pod.
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+# -- Container security context. Defaults follow the restricted Pod Security
+# Standard: no privilege escalation, all capabilities dropped, read-only root.
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  capabilities:
+    drop:
+      - ALL
+
+# -- Compute resources for the operator container.
+resources:
+  limits:
+    cpu: 500m
+    memory: 128Mi
+  requests:
+    cpu: 10m
+    memory: 64Mi
+
+# -- Node selector for scheduling the operator pod.
+nodeSelector: {}
+# -- Tolerations for scheduling the operator pod.
+tolerations: []
+# -- Affinity rules for scheduling the operator pod.
+affinity: {}
+
+# -- Enable leader election. Required when replicaCount > 1; harmless at 1.
+leaderElection:
+  enabled: true
+
+metrics:
+  # -- Expose the operator's own Prometheus metrics (docs/ARCHITECTURE.md §8).
+  enabled: true
+  # -- Address the metrics endpoint binds to inside the pod.
+  bindAddress: ":8080"
+  # -- Serve metrics over HTTPS with authn/authz. Left false for a frictionless
+  # default scrape; set true and front with the metrics-auth RBAC for hardened
+  # clusters.
+  secure: false
+  # -- Service port that exposes the metrics endpoint.
+  port: 8080
+
+serviceMonitor:
+  # -- Create a Prometheus Operator ServiceMonitor for the metrics endpoint.
+  # Requires the Prometheus Operator CRDs to be installed.
+  enabled: false
+  # -- Scrape interval.
+  interval: 30s
+  # -- Scrape timeout.
+  scrapeTimeout: 10s
+  # -- Extra labels for the ServiceMonitor (e.g. release: kube-prometheus-stack).
+  labels: {}
+
+prometheusRule:
+  # -- Create a PrometheusRule with the example alerts from
+  # observability/prometheus-rules.yaml. Requires the Prometheus Operator CRDs.
+  enabled: false
+  # -- Extra labels for the PrometheusRule (e.g. release: kube-prometheus-stack).
+  labels: {}
+
+webhook:
+  # -- Enable the validating admission webhook. When false (the default) the
+  # operator runs with ENABLE_WEBHOOKS=false and no ValidatingWebhookConfiguration
+  # is created, so the chart installs cleanly without cert-manager. Enabling it
+  # requires TLS certs (cert-manager is recommended); see the chart README.
+  enabled: false

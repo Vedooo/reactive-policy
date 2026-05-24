@@ -1,0 +1,36 @@
+{{- if .Values.rbac.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "reactive-policy.fullname" . }}-manager
+  labels:
+    {{- include "reactive-policy.labels" . | nindent 4 }}
+rules:
+  # reactive-policy custom resources and their subresources.
+  - apiGroups: ["reactive-policy.io"]
+    resources: ["reactivepolicies", "actionaudits"]
+    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+  - apiGroups: ["reactive-policy.io"]
+    resources: ["reactivepolicies/status", "actionaudits/status"]
+    verbs: ["get", "patch", "update"]
+  - apiGroups: ["reactive-policy.io"]
+    resources: ["reactivepolicies/finalizers"]
+    verbs: ["update"]
+  # notify.slack plugin: read webhook URLs from Secrets.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
+  # argocd.suspend plugin: pause Application auto-sync.
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications"]
+    verbs: ["get", "patch", "update"]
+  # k8s.annotate plugin: the target kind is policy-defined, so the grant is
+  # broad. Scope this down if you only annotate specific kinds.
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: ["get", "list", "patch", "update"]
+  # Kubernetes Events emitted on trigger.
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+{{- end }}

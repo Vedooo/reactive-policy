@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="reactive-policy">
+  <path d="M128 16 L214 52 L214 130 C214 186 175 223 128 240 C81 223 42 186 42 130 L42 52 Z" fill="none" stroke="#ffffff" stroke-width="13"/>
+  <line x1="74" y1="150" x2="182" y2="150" stroke="#ffffff" stroke-opacity="0.55" stroke-width="8" stroke-linecap="round" stroke-dasharray="0.1 19"/>
+  <path d="M70 172 L94 165 L114 178 L134 156 L158 110 L182 84" fill="none" stroke="#ffffff" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="182" cy="84" r="11" fill="#ffffff"/>
+</svg>

@@ -1,0 +1,46 @@
+# golangci-lint configuration for reactive-policy.
+# Tuned for a Kubebuilder operator. Pinned to golangci-lint v1.61.x (see CI).
+run:
+  timeout: 5m
+  go: "1.22"
+
+linters:
+  enable:
+    # Defaults (kept explicit for clarity).
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    # Style and correctness.
+    - gofmt
+    - goimports
+    - misspell
+    - gocritic
+    - unconvert
+    - unparam
+    - errorlint
+    # Bugs and security.
+    - gosec
+    - bodyclose
+    - nilerr
+    - prealloc
+
+linters-settings:
+  goimports:
+    local-prefixes: github.com/Vedooo/reactive-policy
+  gosec:
+    excludes:
+      - G104
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  exclude-rules:
+    # Test files may take shortcuts.
+    - path: _test\.go
+      linters:
+        - gosec
+        - errcheck
+        - unparam
+        - prealloc

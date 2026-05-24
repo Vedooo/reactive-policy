@@ -1,0 +1,4 @@
+# Default owner for everything in the repository.
+# Used to auto-request review and (optionally) enforce code-owner review via
+# branch protection.
+* @Vedooo

@@ -1,0 +1,9 @@
+# Artifact Hub repository metadata.
+# After adding this repository on artifacthub.io, paste the generated
+# repository ID below to claim ownership. For the OCI chart, this file is
+# pushed to the registry as an artifacthub.io metadata artifact (via oras)
+# during the public release; see RELEASING.md.
+repositoryID: ""
+owners:
+  - name: Vedat Koçoğlu
+    email: vedatkocoglu.dev@gmail.com

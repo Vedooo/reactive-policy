@@ -1,0 +1,16 @@
+# markdownlint configuration for reactive-policy.
+# Catch real structural issues; silence stylistic noise that fights long
+# docs, tables, and badge blocks.
+default: true
+
+MD013: false  # Line length — docs/tables intentionally exceed 80 cols.
+MD033: false  # Inline HTML — README badges and similar.
+MD041: false  # First line heading — README opens with a blockquote/badges.
+MD040: false  # Fenced code language — some blocks are plain output.
+MD036: false  # Emphasis as heading — DECISIONS.md uses **Status:** style.
+MD026: false  # Trailing punctuation in headings.
+MD029: false  # Ordered list prefix style.
+MD060: false  # Table column style — GFM renders compact and padded alike.
+
+MD024:
+  siblings_only: true  # Allow repeated heading text under different parents.
