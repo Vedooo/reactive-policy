@@ -29,6 +29,10 @@ rules:
   - apiGroups: ["*"]
     resources: ["*"]
     verbs: ["get", "list", "patch", "update"]
+  # network.isolate plugin: create/delete NetworkPolicies to quarantine workloads.
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["networkpolicies"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
   # Kubernetes Events emitted on trigger.
   - apiGroups: [""]
     resources: ["events"]

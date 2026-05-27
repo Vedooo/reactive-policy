@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`network.isolate` plugin** — quarantines a matched workload's pods behind a
+  restrictive `NetworkPolicy` (ingress/egress, optional DNS allowance).
+  Reversible: revert deletes the policy it created.
+
+### Changed
+
+- Upgraded to the current Kubernetes ecosystem: Kubernetes libraries `v0.36`,
+  controller-runtime `v0.24`, Go `1.26`, and refreshed the build and CI tooling
+  (controller-tools, envtest, golangci-lint v2).
+
 ## [0.1.0] - 2026-05-24
 
 First public release. A Kubernetes operator and CLI that turn sustained
@@ -50,4 +64,5 @@ The 0.1.0 release was built incrementally; the pre-release tags map to:
   that survives operator restarts.
 - **v0.0.7** — self-observability: metrics, Grafana dashboard, and alert rules.
 
+[Unreleased]: https://github.com/Vedooo/reactive-policy/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/Vedooo/reactive-policy/releases/tag/v0.1.0

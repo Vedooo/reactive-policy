@@ -44,6 +44,7 @@ import (
 	// (see docs/ARCHITECTURE.md §3.1).
 	_ "github.com/Vedooo/reactive-policy/plugins/argocd-suspend"
 	_ "github.com/Vedooo/reactive-policy/plugins/k8s-annotate"
+	_ "github.com/Vedooo/reactive-policy/plugins/network-isolate"
 	_ "github.com/Vedooo/reactive-policy/plugins/notify-slack"
 	// +kubebuilder:scaffold:imports
 )
@@ -56,6 +57,7 @@ import (
 // +kubebuilder:rbac:groups="*",resources="*",verbs=get;list;patch;update
 // argocd.suspend:
 // +kubebuilder:rbac:groups=argoproj.io,resources=applications,verbs=get;patch;update
+// +kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;create;update;patch;delete
 
 var (
 	scheme   = runtime.NewScheme()
