@@ -1,7 +1,7 @@
 # Plugins
 
 Actions are plugins. Each implements one `Action` interface and registers itself
-at startup, so adding a plugin never touches the core. Three ship in `v0.x`.
+at startup, so adding a plugin never touches the core. Four ship in `v0.x`.
 
 A plugin declares whether it is **reversible** (can `rp action revert` undo it)
 and the **RBAC** it needs; the operator aggregates those grants.
@@ -34,6 +34,26 @@ bad release. **Reversible** — revert resumes auto-sync.
 ```
 
 Requires the target kind to include `argoproj.io/v1alpha1 Application`.
+
+## `network.isolate`
+
+Quarantines the matched workload's pods behind a restrictive `NetworkPolicy`,
+cutting off traffic while you investigate. **Reversible** — revert deletes the
+`NetworkPolicy` it created.
+
+```yaml
+- plugin: network.isolate
+  params:
+    direction: both        # optional; ingress | egress | both (default both)
+    allowDNS: true         # optional; keep port 53 egress open (default true)
+    podSelector:           # optional; overrides the auto-detected selector
+      app: api
+```
+
+The pod selector is auto-detected from the target (a workload's
+`spec.selector.matchLabels`, a Service's `spec.selector`, or the object's own
+labels); set `podSelector` to override it. Requires a CNI that enforces
+`NetworkPolicy` (Calico, Cilium, Antrea, etc.).
 
 ## `notify.slack`
 
