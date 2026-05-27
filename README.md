@@ -104,6 +104,15 @@ helm install reactive-policy \
   --namespace reactive-policy --create-namespace
 ```
 
+Or install the full stack — the operator plus a bundled kube-prometheus-stack
+(Prometheus, Alertmanager, Grafana) — in one command:
+
+```bash
+helm install reactive-policy-stack \
+  oci://ghcr.io/vedooo/charts/reactive-policy-stack \
+  --namespace reactive-policy --create-namespace
+```
+
 Apply a policy, then watch it work with the `rp` CLI:
 
 ```bash
@@ -148,12 +157,14 @@ rp plugin list                  # installed plugins and their permissions
 
 ## Plugins
 
-Three built-in plugins ship in v0.x; each implements one `Action` interface and
+Five built-in plugins ship in v0.x; each implements one `Action` interface and
 registers itself, so adding one never touches the core:
 
 - **`notify.slack`** — send a formatted notification via a Slack webhook.
 - **`k8s.annotate`** — add or update an annotation on the matched resources.
 - **`argocd.suspend`** — pause an ArgoCD Application's auto-sync.
+- **`network.isolate`** — quarantine the matched workload's pods with a restrictive `NetworkPolicy`.
+- **`mesh.shift`** — drain traffic from a backend by shifting its Gateway API `HTTPRoute` weight (Istio, Linkerd).
 
 Write your own: see the [Plugin guide](docs/PLUGIN_INTERFACE.md).
 
