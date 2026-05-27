@@ -28,6 +28,7 @@ import (
 	// Built-in action plugins register themselves via their init() functions.
 	_ "github.com/Vedooo/reactive-policy/plugins/argocd-suspend"
 	_ "github.com/Vedooo/reactive-policy/plugins/k8s-annotate"
+	_ "github.com/Vedooo/reactive-policy/plugins/mesh-shift"
 	_ "github.com/Vedooo/reactive-policy/plugins/network-isolate"
 	_ "github.com/Vedooo/reactive-policy/plugins/notify-slack"
 )

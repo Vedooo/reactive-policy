@@ -11,6 +11,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`network.isolate` plugin** — quarantines a matched workload's pods behind a
   restrictive `NetworkPolicy` (ingress/egress, optional DNS allowance).
   Reversible: revert deletes the policy it created.
+- **`mesh.shift` plugin** — drains traffic from a backend by setting its weight
+  on a Gateway API `HTTPRoute` (works with Istio, Linkerd, and any Gateway API
+  mesh). Reversible: revert restores the previous weights.
 
 ### Changed
 
