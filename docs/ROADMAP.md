@@ -213,13 +213,19 @@ Eight-week plan to ship v0.1. Each week is a self-contained chunk with a clear
 
 ---
 
-## After v0.1.0
+## Beyond v0.1.0
 
-Briefly noted, not yet planned:
+Shipped since v0.1.0:
 
-- **v0.2:** Flux source plugin, Loki/Tempo metric sources, MutatingWebhook
-- **v0.3:** Optional AI consultation (`aiConsult`), pluggable LLM providers, MCP
-- **v0.4:** WASM-based plugin loading, multi-cluster fan-out
-- **v1.0:** Stable API, CNCF Sandbox application
+- **v0.2:** Kubernetes currency (k8s 1.36, controller-runtime 0.24), the
+  `network.isolate` and `mesh.shift` action plugins, and the
+  `reactive-policy-stack` umbrella chart (operator plus an optional, bundled
+  kube-prometheus-stack).
 
-Don't pre-commit to any of these.
+On the roadmap, in rough order (not pre-committed):
+
+- A DB-backed history/event sink for analytics and long retention.
+- A web UI over the audit history.
+- More action plugins and metric sources (Flux, Loki/Tempo, ...).
+- Optional AI/agent-assisted automation.
+- **v1.0:** stable API, CNCF Sandbox application.

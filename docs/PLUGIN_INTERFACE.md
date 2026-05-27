@@ -1,8 +1,9 @@
 # Plugin Interface
 
 This document specifies the contract that every action plugin must implement.
-v0.1 ships three built-in plugins (`notify.slack`, `k8s.annotate`,
-`argocd.suspend`). New plugins follow the same pattern.
+reactive-policy ships five built-in plugins (`notify.slack`, `k8s.annotate`,
+`argocd.suspend`, `network.isolate`, `mesh.shift`). New plugins follow the same
+pattern.
 
 ## 1. The `Action` interface
 
