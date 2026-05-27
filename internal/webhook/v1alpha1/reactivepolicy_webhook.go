@@ -22,12 +22,10 @@ import (
 	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	reactivepolicyiov1alpha1 "github.com/Vedooo/reactive-policy/api/v1alpha1"
@@ -53,7 +51,7 @@ var reactivePolicyGK = schema.GroupKind{Group: "reactive-policy.io", Kind: "Reac
 // SetupReactivePolicyWebhookWithManager registers the validating webhook for
 // ReactivePolicy, validating action params against the given plugin registry.
 func SetupReactivePolicyWebhookWithManager(mgr ctrl.Manager, registry *action.Registry) error {
-	return ctrl.NewWebhookManagedBy(mgr).For(&reactivepolicyiov1alpha1.ReactivePolicy{}).
+	return ctrl.NewWebhookManagedBy(mgr, &reactivepolicyiov1alpha1.ReactivePolicy{}).
 		WithValidator(&ReactivePolicyCustomValidator{registry: registry}).
 		Complete()
 }
@@ -65,30 +63,22 @@ type ReactivePolicyCustomValidator struct {
 	registry *action.Registry
 }
 
-var _ webhook.CustomValidator = &ReactivePolicyCustomValidator{}
+var _ admission.Validator[*reactivepolicyiov1alpha1.ReactivePolicy] = &ReactivePolicyCustomValidator{}
 
 // ValidateCreate validates a ReactivePolicy on creation.
-func (v *ReactivePolicyCustomValidator) ValidateCreate(_ context.Context, obj runtime.Object) (admission.Warnings, error) {
-	policy, ok := obj.(*reactivepolicyiov1alpha1.ReactivePolicy)
-	if !ok {
-		return nil, fmt.Errorf("expected a ReactivePolicy object but got %T", obj)
-	}
+func (v *ReactivePolicyCustomValidator) ValidateCreate(_ context.Context, policy *reactivepolicyiov1alpha1.ReactivePolicy) (admission.Warnings, error) {
 	reactivepolicylog.Info("validating create", "name", policy.GetName())
 	return nil, v.validate(policy)
 }
 
 // ValidateUpdate validates a ReactivePolicy on update.
-func (v *ReactivePolicyCustomValidator) ValidateUpdate(_ context.Context, _, newObj runtime.Object) (admission.Warnings, error) {
-	policy, ok := newObj.(*reactivepolicyiov1alpha1.ReactivePolicy)
-	if !ok {
-		return nil, fmt.Errorf("expected a ReactivePolicy object but got %T", newObj)
-	}
-	reactivepolicylog.Info("validating update", "name", policy.GetName())
-	return nil, v.validate(policy)
+func (v *ReactivePolicyCustomValidator) ValidateUpdate(_ context.Context, _, newObj *reactivepolicyiov1alpha1.ReactivePolicy) (admission.Warnings, error) {
+	reactivepolicylog.Info("validating update", "name", newObj.GetName())
+	return nil, v.validate(newObj)
 }
 
 // ValidateDelete allows all deletions; there is nothing to validate.
-func (v *ReactivePolicyCustomValidator) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
+func (v *ReactivePolicyCustomValidator) ValidateDelete(_ context.Context, _ *reactivepolicyiov1alpha1.ReactivePolicy) (admission.Warnings, error) {
 	return nil, nil
 }
 
@@ -99,7 +89,7 @@ func (v *ReactivePolicyCustomValidator) ValidateDelete(_ context.Context, _ runt
 func (v *ReactivePolicyCustomValidator) validate(policy *reactivepolicyiov1alpha1.ReactivePolicy) error {
 	spec := field.NewPath("spec")
 
-	var errs field.ErrorList
+	var errs field.ErrorList //nolint:prealloc // small, variable number of appended lists
 	errs = append(errs, validateObserve(spec.Child("observe"), policy.Spec.Observe)...)
 	errs = append(errs, validateTimings(spec, policy.Spec)...)
 	errs = append(errs, v.validateActions(spec.Child("actions"), policy.Spec)...)
