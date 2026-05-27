@@ -1,7 +1,7 @@
 # Plugins
 
 Actions are plugins. Each implements one `Action` interface and registers itself
-at startup, so adding a plugin never touches the core. Four ship in `v0.x`.
+at startup, so adding a plugin never touches the core. Five ship in `v0.x`.
 
 A plugin declares whether it is **reversible** (can `rp action revert` undo it)
 and the **RBAC** it needs; the operator aggregates those grants.
@@ -54,6 +54,26 @@ The pod selector is auto-detected from the target (a workload's
 `spec.selector.matchLabels`, a Service's `spec.selector`, or the object's own
 labels); set `podSelector` to override it. Requires a CNI that enforces
 `NetworkPolicy` (Calico, Cilium, Antrea, etc.).
+
+## `mesh.shift`
+
+Drains traffic from a backend by setting its weight on a Gateway API
+`HTTPRoute`. Because it speaks the vendor-neutral Gateway API, it works with
+Istio, Linkerd, and any other Gateway API mesh. **Reversible** — revert restores
+the previous weights.
+
+```yaml
+- plugin: mesh.shift
+  params:
+    routeRef:
+      name: api-route       # the HTTPRoute to adjust
+      namespace: prod       # optional; defaults to the policy's namespace
+    backend: api            # the backendRef name to drain
+    weight: 0               # optional; weight to set (default 0 = drain)
+```
+
+`weight: 0` shifts all traffic off the named backend onto the route's other
+backends. Requires a Gateway API implementation (Istio, Linkerd, Contour, etc.).
 
 ## `notify.slack`
 
