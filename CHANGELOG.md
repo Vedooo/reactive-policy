@@ -6,6 +6,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-05-27
+
+### Fixed
+
+- Publish the container image under the version tag without the leading `v`
+  (e.g. `0.2.1`), matching the Helm chart's `appVersion` so a chart install
+  pulls an image tag that exists. The v0.2.0 image was published only as
+  `v0.2.0`, which left the chart's default image reference dangling.
+
 ## [0.2.0] - 2026-05-27
 
 ### Added
@@ -72,6 +81,7 @@ The 0.1.0 release was built incrementally; the pre-release tags map to:
   that survives operator restarts.
 - **v0.0.7** — self-observability: metrics, Grafana dashboard, and alert rules.
 
-[Unreleased]: https://github.com/Vedooo/reactive-policy/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Vedooo/reactive-policy/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/Vedooo/reactive-policy/releases/tag/v0.2.1
 [0.2.0]: https://github.com/Vedooo/reactive-policy/releases/tag/v0.2.0
 [0.1.0]: https://github.com/Vedooo/reactive-policy/releases/tag/v0.1.0
