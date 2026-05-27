@@ -28,3 +28,7 @@ go.work
 
 # mkdocs build output
 site/
+
+# Helm umbrella chart dependencies (fetched via `helm dependency update`)
+charts/*/charts/
+charts/*/Chart.lock

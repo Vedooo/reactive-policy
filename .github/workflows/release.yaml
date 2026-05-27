@@ -136,3 +136,19 @@ jobs:
           echo "${GH_TOKEN}" | helm registry login ghcr.io \
             --username "${GITHUB_ACTOR}" --password-stdin
           helm push "reactive-policy-${version}.tgz" "oci://ghcr.io/${owner}/charts"
+
+      - name: Package and push the stack chart
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          owner="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo update
+          # Keep the bundled operator chart version in step with this release.
+          sed -i "s/^version:.*/version: ${version}/" charts/reactive-policy/Chart.yaml
+          helm dependency update charts/reactive-policy-stack
+          helm package charts/reactive-policy-stack --version "${version}" --app-version "${version}"
+          echo "${GH_TOKEN}" | helm registry login ghcr.io \
+            --username "${GITHUB_ACTOR}" --password-stdin
+          helm push "reactive-policy-stack-${version}.tgz" "oci://ghcr.io/${owner}/charts"

@@ -1,0 +1,12 @@
+# Patterns to ignore when building Helm packages.
+# NOTE: do not add "*.tgz" here — the packaged umbrella must include its
+# vendored dependency archives under charts/.
+.DS_Store
+.git/
+.gitignore
+*.tmp
+*.bak
+*.orig
+*~
+.project
+.idea/

@@ -1,0 +1,38 @@
+# Default values for the reactive-policy-stack umbrella chart.
+#
+# This chart wraps the lean reactive-policy operator and, optionally, the
+# community kube-prometheus-stack. There are two modes:
+#
+#   * Bundle (default): install kube-prometheus-stack alongside the operator so
+#     a fresh cluster gets Prometheus, Alertmanager, and Grafana out of the box.
+#   * Bring your own: set `kube-prometheus-stack.enabled=false` and point each
+#     ReactivePolicy's `spec.observe.endpoint` at your existing Prometheus.
+#
+# Values for a subchart are nested under its name. See
+# charts/reactive-policy/values.yaml for the operator's full set, and the
+# upstream kube-prometheus-stack chart for its many options.
+
+# -- Values passed through to the reactive-policy operator subchart. The
+# ServiceMonitor and PrometheusRule are on by default here because the stack
+# ships a Prometheus Operator to consume them.
+reactive-policy:
+  serviceMonitor:
+    enabled: true
+  prometheusRule:
+    enabled: true
+
+# -- The community kube-prometheus-stack. Only a few defaults are overridden;
+# everything else uses the upstream chart's defaults.
+kube-prometheus-stack:
+  # -- Install kube-prometheus-stack (Prometheus Operator, Prometheus,
+  # Alertmanager, Grafana, node-exporter, kube-state-metrics). Set to false to
+  # use an existing monitoring stack instead.
+  enabled: true
+  prometheus:
+    prometheusSpec:
+      # -- Discover ServiceMonitors, PodMonitors, and PrometheusRules
+      # cluster-wide rather than only those carrying this release's label, so
+      # reactive-policy's own monitors are scraped without extra labelling.
+      serviceMonitorSelectorNilUsesHelmValues: false
+      podMonitorSelectorNilUsesHelmValues: false
+      ruleSelectorNilUsesHelmValues: false

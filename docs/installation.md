@@ -115,3 +115,26 @@ cd reactive-policy && make build-cli   # produces ./bin/rp
 ```
 
 Next: the [Quickstart](quickstart.md).
+
+## The reactive-policy-stack umbrella chart
+
+For a fresh cluster, the `reactive-policy-stack` chart installs the operator
+together with an optional, bundled kube-prometheus-stack — Prometheus,
+Alertmanager, and Grafana — in one command:
+
+```sh
+helm install rps oci://ghcr.io/vedooo/charts/reactive-policy-stack \
+  --namespace reactive-policy --create-namespace
+```
+
+Already running Prometheus? Bring your own:
+
+```sh
+helm install rps oci://ghcr.io/vedooo/charts/reactive-policy-stack \
+  --namespace reactive-policy --create-namespace \
+  --set kube-prometheus-stack.enabled=false
+```
+
+The operator itself stays lean; the umbrella is opt-in. The chart's NOTES print
+the in-cluster Prometheus endpoint to reference from each policy's
+`spec.observe.endpoint`.

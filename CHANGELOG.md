@@ -14,6 +14,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`mesh.shift` plugin** — drains traffic from a backend by setting its weight
   on a Gateway API `HTTPRoute` (works with Istio, Linkerd, and any Gateway API
   mesh). Reversible: revert restores the previous weights.
+- **`reactive-policy-stack` umbrella chart** — a distribution that installs the
+  operator plus an optional, bundled kube-prometheus-stack (set
+  `kube-prometheus-stack.enabled=false` to bring your own Prometheus).
 
 ### Changed
 

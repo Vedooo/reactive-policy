@@ -1,0 +1,52 @@
+apiVersion: v2
+name: reactive-policy-stack
+description: >-
+  The reactive-policy distribution: the operator plus an optional, bundled
+  kube-prometheus-stack, so a fresh cluster has everything it needs to observe
+  Prometheus metrics and run reactive, auditable, reversible actions.
+type: application
+
+# version is the chart version (semver). Bumped on any chart change.
+version: 0.1.0
+
+# appVersion is the reactive-policy release this stack deploys by default.
+appVersion: "0.1.0"
+
+home: https://github.com/Vedooo/reactive-policy
+icon: https://raw.githubusercontent.com/Vedooo/reactive-policy/main/docs/assets/logo.svg
+sources:
+  - https://github.com/Vedooo/reactive-policy
+keywords:
+  - operator
+  - prometheus
+  - kube-prometheus-stack
+  - gitops
+  - sre
+  - automation
+maintainers:
+  - name: Vedat Koçoğlu
+    url: https://github.com/Vedooo
+
+dependencies:
+  # The lean operator. Always installed. Resolved from the sibling chart in the
+  # repo; a version range keeps the umbrella in step with the operator release.
+  - name: reactive-policy
+    version: ">=0.1.0-0"
+    repository: "file://../reactive-policy"
+  # Optional bundled monitoring stack. Disable with
+  # kube-prometheus-stack.enabled=false to bring your own Prometheus.
+  - name: kube-prometheus-stack
+    version: "85.3.3"
+    repository: "https://prometheus-community.github.io/helm-charts"
+    condition: kube-prometheus-stack.enabled
+
+annotations:
+  artifacthub.io/license: Apache-2.0
+  artifacthub.io/category: integration-delivery
+  artifacthub.io/links: |
+    - name: Documentation
+      url: https://vedooo.github.io/reactive-policy
+    - name: Source
+      url: https://github.com/Vedooo/reactive-policy
+    - name: Changelog
+      url: https://github.com/Vedooo/reactive-policy/blob/main/CHANGELOG.md

@@ -1,0 +1,27 @@
+reactive-policy-stack {{ .Chart.AppVersion }} is installed in namespace {{ .Release.Namespace }}.
+
+The reactive-policy operator is running and watching ReactivePolicy resources.
+{{- if index .Values "kube-prometheus-stack" "enabled" }}
+
+A bundled kube-prometheus-stack is installed. Point your policies at its
+Prometheus by setting:
+
+  spec:
+    observe:
+      source: prometheus
+      endpoint: http://{{ .Release.Name }}-kube-prometheus-stack-prometheus.{{ .Release.Namespace }}.svc:9090
+
+Open Grafana with:
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ .Release.Name }}-grafana 3000:80
+{{- else }}
+
+kube-prometheus-stack is disabled (bring-your-own mode). Point each policy's
+spec.observe.endpoint at your existing Prometheus HTTP API.
+{{- end }}
+
+Next steps:
+
+  kubectl -n {{ .Release.Namespace }} get pods
+  rp policy list -A
+  rp plugin list
