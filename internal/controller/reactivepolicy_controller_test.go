@@ -35,6 +35,7 @@ import (
 	"github.com/Vedooo/reactive-policy/api/v1alpha1"
 	"github.com/Vedooo/reactive-policy/internal/action"
 	acttest "github.com/Vedooo/reactive-policy/internal/action/testing"
+	"github.com/Vedooo/reactive-policy/internal/audit/sink"
 	"github.com/Vedooo/reactive-policy/internal/prometheus"
 )
 
@@ -50,15 +51,20 @@ func (f *fakePromClient) Query(context.Context, string) (float64, error) {
 }
 
 func newReconciler(fake *fakePromClient, plugins ...action.Action) *ReactivePolicyReconciler {
+	return newReconcilerWithSink(fake, sink.Noop{}, plugins...)
+}
+
+func newReconcilerWithSink(fake *fakePromClient, s sink.Sink, plugins ...action.Action) *ReactivePolicyReconciler {
 	return &ReactivePolicyReconciler{
 		Client: k8sClient,
 		Scheme: k8sClient.Scheme(),
 		Prometheus: func(string, ...prometheus.Option) (prometheus.Client, error) {
 			return fake, nil
 		},
-		Window:   prometheus.NewSlidingWindow(),
-		Executor: action.NewExecutor(acttest.NewFakeRegistry(plugins...)),
-		Limiter:  newAuditLimiter(k8sClient),
+		Window:    prometheus.NewSlidingWindow(),
+		Executor:  action.NewExecutor(acttest.NewFakeRegistry(plugins...)),
+		Limiter:   newAuditLimiter(k8sClient),
+		AuditSink: s,
 	}
 }
 

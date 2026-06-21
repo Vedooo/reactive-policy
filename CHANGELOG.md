@@ -8,6 +8,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Pluggable audit sink interface (`internal/audit/sink`) with a default no-op
+  implementation, wired into both the `ReactivePolicy` and `ActionAudit`
+  reconcilers. The operator forwards trigger and revert outcomes to the sink
+  in addition to the `ActionAudit` CRD, which remains source of truth. This is
+  the foundation for the upcoming DB-backed history (Postgres sink + CNPG
+  umbrella subchart).
 - `retag-image` workflow (`workflow_dispatch`) to backfill the v-stripped image
   tag for releases cut before v0.2.1, so the chart's default `image.tag`
   resolves and Artifact Hub's vulnerability scanner can find the image. Used to
