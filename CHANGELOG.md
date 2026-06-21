@@ -6,6 +6,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Umbrella chart `Cluster` CR (audit DB) is now applied as a
+  `post-install,post-upgrade` hook with `helm.sh/resource-policy: keep`,
+  so it lands after CNPG's CRDs are registered. Without the hook, a fresh
+  `helm install` of the stack with `audit.enabled=true` failed with
+  `resource mapping not found … kind "Cluster" in version
+  "postgresql.cnpg.io/v1"`. The Cluster now persists past
+  `helm uninstall`; clean it up explicitly with `kubectl delete cluster`.
+- Stack `README.md` documents the matching toggles when
+  `kube-prometheus-stack.enabled=false` — `ServiceMonitor` /
+  `PrometheusRule` must also be disabled to avoid "resource mapping not
+  found" for `monitoring.coreos.com/v1` resources.
+
 ### Added
 
 - `reactive-policy-stack` umbrella gains an optional CloudNativePG subchart

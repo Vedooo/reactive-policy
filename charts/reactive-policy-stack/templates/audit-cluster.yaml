@@ -9,6 +9,13 @@ metadata:
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
     app.kubernetes.io/part-of: reactive-policy-stack
+  annotations:
+    # Apply after CNPG CRDs are registered (CNPG ships them as regular templates,
+    # not under crds/, so a parent-chart Cluster CR fails validation pre-install).
+    # The Cluster persists past `helm uninstall` — delete it explicitly to remove.
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "5"
+    helm.sh/resource-policy: keep
 spec:
   instances: {{ .Values.audit.instances }}
   bootstrap:
