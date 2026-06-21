@@ -6,6 +6,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `retag-image` workflow (`workflow_dispatch`) to backfill the v-stripped image
+  tag for releases cut before v0.2.1, so the chart's default `image.tag`
+  resolves and Artifact Hub's vulnerability scanner can find the image. Used to
+  retag `v0.1.0` and `v0.2.0` to `0.1.0` and `0.2.0` without rebuilding.
+
+### Changed
+
+- Bump grouped Go dependencies (Dependabot): `ginkgo/v2` 2.29 → 2.31,
+  `gomega` 1.40 → 1.42, Kubernetes API/client modules 0.36.1 → 0.36.2,
+  `prometheus/common` 0.67.5 → 0.68.1, `golang-jwt/v5` 5.3.0 → 5.3.1, plus
+  several `golang.org/x/*` and `go.yaml.in/yaml/v2` patch bumps.
+
 ## [0.2.1] - 2026-05-27
 
 ### Fixed
