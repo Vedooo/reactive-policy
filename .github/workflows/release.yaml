@@ -145,6 +145,7 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           owner="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
           helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo add cloudnative-pg https://cloudnative-pg.github.io/charts
           helm repo update
           # Keep the bundled operator chart version in step with this release.
           sed -i "s/^version:.*/version: ${version}/" charts/reactive-policy/Chart.yaml

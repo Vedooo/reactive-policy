@@ -76,3 +76,34 @@ kube-prometheus-stack value under `kube-prometheus-stack:`.
 
 - [Documentation](https://vedooo.github.io/reactive-policy)
 - [Source](https://github.com/Vedooo/reactive-policy)
+
+## Audit history (optional)
+
+The umbrella can also install a CloudNativePG Cluster as a long-term, queryable
+store for every triggered action. The `ActionAudit` CRD remains the source of
+truth; the database is best-effort analytics — operator restarts and DB blips
+never block reconciliation.
+
+Enable it with three matching flags:
+
+```bash
+helm install rp oci://ghcr.io/vedooo/charts/reactive-policy-stack \
+  --set audit.enabled=true \
+  --set cloudnative-pg.enabled=true \
+  --set reactive-policy.audit.sink=postgres
+```
+
+This installs the CloudNativePG operator subchart, creates a Cluster named
+`rp-audit` (overridable via `audit.clusterName`), and configures the
+reactive-policy operator to forward action and revert events to it via the
+auto-generated `rp-audit-app` Secret's `uri` key.
+
+To bring your own Postgres instead, leave `audit.enabled=false` and
+`cloudnative-pg.enabled=false`, point the operator at your existing instance:
+
+```bash
+helm install rp oci://ghcr.io/vedooo/charts/reactive-policy-stack \
+  --set reactive-policy.audit.sink=postgres \
+  --set reactive-policy.audit.postgres.dsnSecret.name=my-postgres-secret \
+  --set reactive-policy.audit.postgres.dsnSecret.key=dsn
+```

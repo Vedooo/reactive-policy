@@ -138,3 +138,44 @@ helm install rps oci://ghcr.io/vedooo/charts/reactive-policy-stack \
 The operator itself stays lean; the umbrella is opt-in. The chart's NOTES print
 the in-cluster Prometheus endpoint to reference from each policy's
 `spec.observe.endpoint`.
+
+## DB-backed audit history (optional)
+
+By default the operator records every triggered pipeline in the `ActionAudit`
+CRD (kept in etcd). For long-retention analytics on top of that, the umbrella
+can also install a CloudNativePG cluster and forward every action and revert
+outcome to it. The CRD stays the source of truth; the database is best-effort
+analytics.
+
+Enable it with three flags on the stack chart:
+
+```sh
+helm install rps oci://ghcr.io/vedooo/charts/reactive-policy-stack \
+  --namespace reactive-policy --create-namespace \
+  --set audit.enabled=true \
+  --set cloudnative-pg.enabled=true \
+  --set reactive-policy.audit.sink=postgres
+```
+
+This deploys the CNPG operator, creates a `Cluster` named `rp-audit` with a
+database `audit` owned by user `rp`, and wires the operator's
+`--audit-sink=postgres` flag to the CNPG-generated `rp-audit-app` Secret (key
+`uri`).
+
+To bring your own Postgres instead, leave `audit.enabled` /
+`cloudnative-pg.enabled` off and point the operator at your existing instance:
+
+```sh
+helm install rps oci://ghcr.io/vedooo/charts/reactive-policy-stack \
+  --set reactive-policy.audit.sink=postgres \
+  --set reactive-policy.audit.postgres.dsnSecret.name=my-postgres-secret \
+  --set reactive-policy.audit.postgres.dsnSecret.key=dsn
+```
+
+The schema is applied automatically on operator start. Two tables:
+
+- `action_executions` — one row per action outcome, indexed by
+  `(policy_ref, triggered_at DESC)` and `audit_uid`.
+- `revert_outcomes` — one row per reversed action.
+
+Both have `UNIQUE (audit_uid, action_index)` so duplicate inserts are no-ops.

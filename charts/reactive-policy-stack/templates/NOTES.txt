@@ -25,3 +25,16 @@ Next steps:
   kubectl -n {{ .Release.Namespace }} get pods
   rp policy list -A
   rp plugin list
+
+{{- if .Values.audit.enabled }}
+Audit history is enabled. The bundled CNPG Cluster "{{ .Values.audit.clusterName }}"
+will write to database "audit" using credentials in Secret "{{ .Values.audit.clusterName }}-app".
+
+For the operator to actually forward events, both flags must be set:
+  --set cloudnative-pg.enabled=true
+  --set reactive-policy.audit.sink=postgres
+
+Verify after rollout:
+  kubectl exec -n {{ .Release.Namespace }} {{ .Values.audit.clusterName }}-1 -- \
+    psql -U rp -d audit -c "SELECT count(*) FROM action_executions"
+{{- end }}

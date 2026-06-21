@@ -1,0 +1,25 @@
+{{- if .Values.audit.enabled }}
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ .Values.audit.clusterName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: reactive-policy-audit
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/part-of: reactive-policy-stack
+spec:
+  instances: {{ .Values.audit.instances }}
+  bootstrap:
+    initdb:
+      database: audit
+      owner: rp
+  storage:
+    size: {{ .Values.audit.storage.size }}
+    {{- with .Values.audit.storage.storageClass }}
+    storageClass: {{ . }}
+    {{- end }}
+  resources:
+    {{- toYaml .Values.audit.resources | nindent 4 }}
+{{- end }}
