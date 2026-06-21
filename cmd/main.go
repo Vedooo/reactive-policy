@@ -17,9 +17,11 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"flag"
 	"os"
+	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -31,6 +33,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -90,6 +93,15 @@ func main() {
 		"If set, the metrics endpoint is served securely via HTTPS. Use --metrics-secure=false to use HTTP instead.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
+	var auditSinkKind string
+	var auditPostgresDSNEnv string
+	var auditPostgresQueueSize int
+	flag.StringVar(&auditSinkKind, "audit-sink", "none",
+		"Audit sink backend. One of: none, postgres.")
+	flag.StringVar(&auditPostgresDSNEnv, "audit-postgres-dsn-env", "RP_AUDIT_POSTGRES_DSN",
+		"Environment variable name holding the Postgres DSN for the audit sink.")
+	flag.IntVar(&auditPostgresQueueSize, "audit-postgres-queue-size", 1024,
+		"In-process queue size for the Postgres audit sink.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -163,16 +175,35 @@ func main() {
 		os.Exit(1)
 	}
 
+	auditSink, err := buildAuditSink(context.Background(), ctrl.Log.WithName("audit-sink"),
+		auditSinkKind, auditPostgresDSNEnv, auditPostgresQueueSize)
+	if err != nil {
+		setupLog.Error(err, "unable to build audit sink")
+		os.Exit(1)
+	}
+	setupLog.Info("audit sink", "kind", auditSinkKind)
+	if err := mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		return auditSink.Close(shutdownCtx)
+	})); err != nil {
+		setupLog.Error(err, "unable to register audit-sink shutdown hook")
+		os.Exit(1)
+	}
+
 	if err = (&controller.ReactivePolicyReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:    mgr.GetClient(),
+		Scheme:    mgr.GetScheme(),
+		AuditSink: auditSink,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ReactivePolicy")
 		os.Exit(1)
 	}
 	if err = (&controller.ActionAuditReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:    mgr.GetClient(),
+		Scheme:    mgr.GetScheme(),
+		AuditSink: auditSink,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ActionAudit")
 		os.Exit(1)
