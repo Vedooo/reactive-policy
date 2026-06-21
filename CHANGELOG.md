@@ -9,8 +9,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - `reactive-policy-stack` umbrella gains an optional CloudNativePG subchart
-  and an `audit.*` block: `audit.enabled=true` + `cloudnative-pg.enabled=true`
-  + `reactive-policy.audit.sink=postgres` installs a CNPG `Cluster`
+  and an `audit.*` block (`audit.enabled=true`, `cloudnative-pg.enabled=true`,
+  and `reactive-policy.audit.sink=postgres` together) installs a CNPG `Cluster`
   (`rp-audit`, database `audit`, owner `rp`) and wires the operator to it via
   the auto-generated `rp-audit-app` secret. Default is OFF — the lean
   operator install is unaffected.
