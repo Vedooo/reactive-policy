@@ -8,6 +8,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Postgres audit sink (`internal/audit/sink/postgres`) built on `pgxpool`,
+  with an async buffered queue, a single drain worker, embedded idempotent
+  schema (`action_executions` + `revert_outcomes`, both with
+  `UNIQUE(audit_uid, action_index)` for retry-safe `ON CONFLICT DO NOTHING`
+  inserts). Opt-in via flags: `--audit-sink=postgres`, configurable DSN via
+  env (`--audit-postgres-dsn-env`, default `RP_AUDIT_POSTGRES_DSN`),
+  configurable queue size. Default remains the no-op sink.
 - Pluggable audit sink interface (`internal/audit/sink`) with a default no-op
   implementation, wired into both the `ReactivePolicy` and `ActionAudit`
   reconcilers. The operator forwards trigger and revert outcomes to the sink
