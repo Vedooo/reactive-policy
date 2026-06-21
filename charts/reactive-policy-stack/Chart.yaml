@@ -7,10 +7,10 @@ description: >-
 type: application
 
 # version is the chart version (semver). Bumped on any chart change.
-version: 0.2.1
+version: 0.3.0
 
 # appVersion is the reactive-policy release this stack deploys by default.
-appVersion: "0.2.1"
+appVersion: "0.3.0"
 
 home: https://github.com/Vedooo/reactive-policy
 icon: https://raw.githubusercontent.com/Vedooo/reactive-policy/main/docs/assets/logo.svg
