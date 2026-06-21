@@ -28,7 +28,8 @@ func buildAuditSink(ctx context.Context, log logr.Logger, kind, dsnEnv string, q
 	case "postgres":
 		dsn := os.Getenv(dsnEnv)
 		if dsn == "" {
-			return nil, fmt.Errorf("audit-sink=postgres requires a DSN in environment variable %q", dsnEnv)
+			log.Info("audit-sink=postgres but DSN env is empty; falling back to noop until the operator restarts with the DSN set", "envVar", dsnEnv)
+			return sink.Noop{}, nil
 		}
 		return postgres.New(ctx, dsn, postgres.Config{QueueSize: queueSize, Logger: log})
 	default:

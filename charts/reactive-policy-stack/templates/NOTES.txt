@@ -41,3 +41,12 @@ Verify after rollout:
   kubectl exec -n {{ .Release.Namespace }} {{ .Values.audit.clusterName }}-1 -- \
     psql -U rp -d audit -c "SELECT count(*) FROM action_executions"
 {{- end }}
+{{- if and .Values.audit.enabled (eq (index .Values "reactive-policy" "audit" "sink" | default "") "postgres") }}
+
+On a fresh install with audit ON, the operator pod starts before the CNPG
+cluster's app-user Secret exists. It boots with the sink temporarily disabled
+(the env var is marked optional). Once `{{ .Values.audit.clusterName }}-app`
+is created, restart the operator so it picks up the DSN:
+
+  kubectl -n {{ .Release.Namespace }} rollout restart deployment     -l app.kubernetes.io/name=reactive-policy
+{{- end }}
