@@ -20,6 +20,16 @@ reactive-policy:
     enabled: true
   prometheusRule:
     enabled: true
+  audit:
+    # -- Operator's sink backend. Set to "postgres" to forward audit events
+    # -- to the bundled Cluster (or your own Postgres).
+    sink: none
+    postgres:
+      dsnEnv: RP_AUDIT_POSTGRES_DSN
+      dsnSecret:
+        # -- The CNPG app-user secret named after audit.clusterName.
+        name: rp-audit-app
+        key: uri
 
 # -- The community kube-prometheus-stack. Only a few defaults are overridden;
 # everything else uses the upstream chart's defaults.
@@ -36,3 +46,35 @@ kube-prometheus-stack:
       serviceMonitorSelectorNilUsesHelmValues: false
       podMonitorSelectorNilUsesHelmValues: false
       ruleSelectorNilUsesHelmValues: false
+
+# Bundled DB-backed audit history (optional). When audit.enabled=true the
+# umbrella renders a CloudNativePG Cluster CR named audit.clusterName, which
+# creates a Secret <clusterName>-app containing a "uri" key. Wire the operator
+# to that secret via reactive-policy.audit.postgres.dsnSecret (already set
+# below to match the default clusterName).
+#
+# Three things must line up to flip everything on:
+#   audit.enabled=true                       (renders the Cluster CR)
+#   cloudnative-pg.enabled=true              (installs the CNPG operator)
+#   reactive-policy.audit.sink=postgres      (operator forwards events)
+audit:
+  enabled: false
+  # -- Name of the CNPG Cluster CR created when audit.enabled. The app-user
+  # secret CNPG produces is "<clusterName>-app".
+  clusterName: rp-audit
+  # -- Number of Postgres instances. >=3 gives HA via streaming replication.
+  instances: 1
+  storage:
+    size: 5Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+# -- CloudNativePG operator. Default off; flip to true alongside audit.enabled.
+cloudnative-pg:
+  enabled: false

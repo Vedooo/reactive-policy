@@ -48,10 +48,22 @@ spec:
             {{- else }}
             - --metrics-bind-address=0
             {{- end }}
+            {{- if eq .Values.audit.sink "postgres" }}
+            - --audit-sink=postgres
+            - --audit-postgres-dsn-env={{ .Values.audit.postgres.dsnEnv }}
+            - --audit-postgres-queue-size={{ .Values.audit.queueSize }}
+            {{- end }}
           env:
             {{- if not .Values.webhook.enabled }}
             - name: ENABLE_WEBHOOKS
               value: "false"
+            {{- end }}
+            {{- if and (eq .Values.audit.sink "postgres") .Values.audit.postgres.dsnSecret.name }}
+            - name: {{ .Values.audit.postgres.dsnEnv }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.audit.postgres.dsnSecret.name }}
+                  key: {{ .Values.audit.postgres.dsnSecret.key }}
             {{- end }}
           ports:
             {{- if .Values.metrics.enabled }}

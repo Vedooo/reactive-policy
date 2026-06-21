@@ -39,6 +39,13 @@ dependencies:
     version: "85.3.3"
     repository: "https://prometheus-community.github.io/helm-charts"
     condition: kube-prometheus-stack.enabled
+  # Optional CloudNativePG operator for the bundled audit database. Disable
+  # to bring your own Postgres (set audit.enabled=true + point
+  # reactive-policy.audit.postgres.dsnSecret at your own Secret).
+  - name: cloudnative-pg
+    version: "0.28.3"
+    repository: "https://cloudnative-pg.github.io/charts"
+    condition: cloudnative-pg.enabled
 
 annotations:
   artifacthub.io/license: Apache-2.0

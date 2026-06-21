@@ -8,6 +8,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `reactive-policy-stack` umbrella gains an optional CloudNativePG subchart
+  and an `audit.*` block (`audit.enabled=true`, `cloudnative-pg.enabled=true`,
+  and `reactive-policy.audit.sink=postgres` together) installs a CNPG `Cluster`
+  (`rp-audit`, database `audit`, owner `rp`) and wires the operator to it via
+  the auto-generated `rp-audit-app` secret. Default is OFF — the lean
+  operator install is unaffected.
+- Operator chart gains `audit.sink` / `audit.queueSize` /
+  `audit.postgres.dsnEnv` / `audit.postgres.dsnSecret.{name,key}` so the
+  Postgres sink (#18) can be used standalone, pointed at any existing
+  Postgres via an external Secret.
+- `release.yaml` chart job now pulls the `cloudnative-pg` repo when packaging
+  the umbrella, so the published OCI artifact self-bundles the CNPG subchart.
+- Installation docs section "DB-backed audit history (optional)" covers both
+  bundled and bring-your-own configurations.
 - Postgres audit sink (`internal/audit/sink/postgres`) built on `pgxpool`,
   with an async buffered queue, a single drain worker, embedded idempotent
   schema (`action_executions` + `revert_outcomes`, both with

@@ -113,3 +113,18 @@ webhook:
   # is created, so the chart installs cleanly without cert-manager. Enabling it
   # requires TLS certs (cert-manager is recommended); see the chart README.
   enabled: false
+
+audit:
+  # -- Audit sink backend. One of: none, postgres. The default no-op keeps the
+  # operator dependency-free; the ActionAudit CRD is source of truth either way.
+  sink: none
+  # -- In-process queue size when sink=postgres.
+  queueSize: 1024
+  postgres:
+    # -- Environment variable on the operator container that holds the DSN.
+    dsnEnv: RP_AUDIT_POSTGRES_DSN
+    # -- Existing Secret to read the DSN from. When unset and sink=postgres,
+    # the operator expects the DSN env var to be provided some other way.
+    dsnSecret:
+      name: ""
+      key: uri
