@@ -8,6 +8,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Operator now boots gracefully when `--audit-sink=postgres` is set but the
+  DSN env var is empty: it logs a warning and falls back to the no-op sink
+  rather than failing startup. Combined with `optional: true` on the
+  `secretKeyRef` in the deployment template, this breaks the umbrella's
+  circular install dependency (operator pod depended on the CNPG-generated
+  Secret, which depended on the Cluster CR, which is a post-install hook).
+  Once the Secret materialises, restart the operator to pick up the DSN
+  (Stack NOTES now print the exact `kubectl rollout restart` command).
 - Umbrella chart `Cluster` CR (audit DB) is now applied as a
   `post-install,post-upgrade` hook with `helm.sh/resource-policy: keep`,
   so it lands after CNPG's CRDs are registered. Without the hook, a fresh

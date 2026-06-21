@@ -64,6 +64,7 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.audit.postgres.dsnSecret.name }}
                   key: {{ .Values.audit.postgres.dsnSecret.key }}
+                  optional: true
             {{- end }}
           ports:
             {{- if .Values.metrics.enabled }}
