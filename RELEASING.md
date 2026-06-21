@@ -86,3 +86,30 @@ Target resolution is in `CHANGELOG.md` under `[Unreleased]`. To release it:
    `artifacthub.io/images` tag.
 3. Tag and push: `git tag v0.2.0 && git push origin v0.2.0`. The `release`
    workflow builds the binaries, multi-arch image, and OCI chart automatically.
+
+## 7. Backfilling old image tags
+
+Releases cut before v0.2.1 published the container image only under the
+`v`-prefixed tag (e.g. `v0.1.0`). The Helm chart's default `image.tag` matches
+`appVersion` (no `v`), so an install of those older chart versions tries to
+pull `ghcr.io/vedooo/reactive-policy:0.1.0`, which never existed. Artifact Hub
+reports this as "image not found" during vulnerability scanning.
+
+To create the missing v-stripped tag without rebuilding (it copies the same
+multi-arch manifest, so the digest is preserved):
+
+1. **Actions → Retag image → Run workflow**.
+2. Set `version` to the bare semver (e.g. `0.1.0`). Leave `source-tag` blank
+   to default to `v<version>`. Leave `also-latest` **off** unless you are
+   retagging the current Latest release.
+3. Verify anonymously:
+
+   ```bash
+   curl -fsS "https://ghcr.io/token?service=ghcr.io&scope=repository:vedooo/reactive-policy:pull" \
+     | jq -r .token \
+     | xargs -I{} curl -fsS -H "Authorization: Bearer {}" \
+       "https://ghcr.io/v2/vedooo/reactive-policy/manifests/0.1.0" -o /dev/null -w "%{http_code}\n"
+   ```
+
+   `200` means the chart's default image reference now resolves and Artifact
+   Hub will pick it up on the next scan.
