@@ -35,6 +35,7 @@ import (
 
 	"github.com/Vedooo/reactive-policy/api/v1alpha1"
 	"github.com/Vedooo/reactive-policy/internal/action"
+	"github.com/Vedooo/reactive-policy/internal/audit/sink"
 )
 
 const (
@@ -53,8 +54,9 @@ const (
 // operator replays each plugin's Reverse here.
 type ActionAuditReconciler struct {
 	client.Client
-	Scheme   *runtime.Scheme
-	Executor *action.Executor
+	Scheme    *runtime.Scheme
+	Executor  *action.Executor
+	AuditSink sink.Sink
 }
 
 // +kubebuilder:rbac:groups=reactive-policy.io,resources=actionaudits,verbs=get;list;watch;update;patch;delete
@@ -115,6 +117,11 @@ func (r *ActionAuditReconciler) revert(ctx context.Context, audit *v1alpha1.Acti
 			return ctrl.Result{Requeue: true}, nil
 		}
 		return ctrl.Result{}, fmt.Errorf("updating audit status: %w", err)
+	}
+	if s := r.AuditSink; s != nil {
+		if err := s.RecordRevert(ctx, buildRevertEvents(audit, results)); err != nil {
+			logger.Error(err, "audit sink: recording revert", "audit", audit.Name)
+		}
 	}
 	logger.Info("processed revert request", "audit", audit.Name, "actions", len(results))
 	return ctrl.Result{RequeueAfter: time.Until(expiry)}, nil
@@ -188,9 +195,35 @@ func parseRetention(s string) (time.Duration, error) {
 	}
 }
 
+func buildRevertEvents(audit *v1alpha1.ActionAudit, results []v1alpha1.RevertResult) []sink.RevertEvent {
+	revertedAt := time.Now()
+	if audit.Status.RevertedAt != nil {
+		revertedAt = audit.Status.RevertedAt.Time
+	}
+	events := make([]sink.RevertEvent, 0, len(results))
+	for i := range results {
+		rr := results[i]
+		events = append(events, sink.RevertEvent{
+			AuditUID:       string(audit.UID),
+			AuditName:      audit.Name,
+			AuditNamespace: audit.Namespace,
+			PolicyRef:      audit.Spec.PolicyRef,
+			ActionIndex:    rr.Index,
+			Plugin:         rr.Plugin,
+			RevertedAt:     revertedAt,
+			Status:         rr.Status,
+			Message:        rr.Message,
+		})
+	}
+	return events
+}
+
 func (r *ActionAuditReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if r.Executor == nil {
 		r.Executor = action.NewExecutor(action.Default())
+	}
+	if r.AuditSink == nil {
+		r.AuditSink = sink.Noop{}
 	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.ActionAudit{}).

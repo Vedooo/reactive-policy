@@ -23,9 +23,11 @@ import (
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/Vedooo/reactive-policy/api/v1alpha1"
 	"github.com/Vedooo/reactive-policy/internal/action"
+	"github.com/Vedooo/reactive-policy/internal/audit/sink"
 )
 
 // writeAudit persists one ActionAudit record describing a triggered pipeline.
@@ -57,7 +59,43 @@ func (r *ReactivePolicyReconciler) writeAudit(ctx context.Context, policy *v1alp
 	if err := r.Create(ctx, audit); err != nil {
 		return fmt.Errorf("creating audit record: %w", err)
 	}
+	if s := r.AuditSink; s != nil {
+		if err := s.RecordTrigger(ctx, buildSinkEvents(audit)); err != nil {
+			log.FromContext(ctx).Error(err, "audit sink: recording trigger", "audit", audit.Name)
+		}
+	}
 	return nil
+}
+
+func buildSinkEvents(audit *v1alpha1.ActionAudit) []sink.Event {
+	events := make([]sink.Event, 0, len(audit.Spec.Actions))
+	for i := range audit.Spec.Actions {
+		rec := audit.Spec.Actions[i]
+		ev := sink.Event{
+			AuditUID:         string(audit.UID),
+			AuditName:        audit.Name,
+			AuditNamespace:   audit.Namespace,
+			PolicyRef:        audit.Spec.PolicyRef,
+			PolicyUID:        audit.Spec.PolicyUID,
+			TriggeredAt:      audit.Spec.TriggeredAt.Time,
+			MetricValue:      audit.Spec.MetricValue,
+			ActionIndex:      rec.Index,
+			ActionID:         rec.ActionID,
+			Plugin:           rec.Plugin,
+			TargetAPIVersion: rec.Target.APIVersion,
+			TargetKind:       rec.Target.Kind,
+			TargetNamespace:  rec.Target.Namespace,
+			TargetName:       rec.Target.Name,
+			Status:           rec.Status,
+			Message:          rec.Message,
+			Reversible:       rec.Reversible,
+		}
+		if rec.Details != nil && len(rec.Details.Raw) > 0 {
+			ev.DetailsJSON = append([]byte(nil), rec.Details.Raw...)
+		}
+		events = append(events, ev)
+	}
+	return events
 }
 
 // toRecord maps an executor Result onto its serialized ActionRecord, resolving

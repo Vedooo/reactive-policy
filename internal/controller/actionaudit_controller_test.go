@@ -32,13 +32,19 @@ import (
 	"github.com/Vedooo/reactive-policy/api/v1alpha1"
 	"github.com/Vedooo/reactive-policy/internal/action"
 	acttest "github.com/Vedooo/reactive-policy/internal/action/testing"
+	"github.com/Vedooo/reactive-policy/internal/audit/sink"
 )
 
 func newAuditReconciler(plugins ...action.Action) *ActionAuditReconciler {
+	return newAuditReconcilerWithSink(sink.Noop{}, plugins...)
+}
+
+func newAuditReconcilerWithSink(s sink.Sink, plugins ...action.Action) *ActionAuditReconciler {
 	return &ActionAuditReconciler{
-		Client:   k8sClient,
-		Scheme:   k8sClient.Scheme(),
-		Executor: action.NewExecutor(acttest.NewFakeRegistry(plugins...)),
+		Client:    k8sClient,
+		Scheme:    k8sClient.Scheme(),
+		Executor:  action.NewExecutor(acttest.NewFakeRegistry(plugins...)),
+		AuditSink: s,
 	}
 }
 

@@ -34,6 +34,7 @@ import (
 
 	"github.com/Vedooo/reactive-policy/api/v1alpha1"
 	"github.com/Vedooo/reactive-policy/internal/action"
+	"github.com/Vedooo/reactive-policy/internal/audit/sink"
 	"github.com/Vedooo/reactive-policy/internal/metrics"
 	"github.com/Vedooo/reactive-policy/internal/prometheus"
 )
@@ -57,6 +58,7 @@ type ReactivePolicyReconciler struct {
 	Window     *prometheus.SlidingWindow
 	Executor   *action.Executor
 	Limiter    *auditLimiter
+	AuditSink  sink.Sink
 }
 
 // +kubebuilder:rbac:groups=reactive-policy.io,resources=reactivepolicies,verbs=get;list;watch;create;update;patch;delete
@@ -332,6 +334,9 @@ func (r *ReactivePolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 	if r.Limiter == nil {
 		r.Limiter = newAuditLimiter(r.Client)
+	}
+	if r.AuditSink == nil {
+		r.AuditSink = sink.Noop{}
 	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.ReactivePolicy{}).
