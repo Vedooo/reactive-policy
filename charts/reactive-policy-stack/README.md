@@ -98,6 +98,21 @@ This installs the CloudNativePG operator subchart, creates a Cluster named
 reactive-policy operator to forward action and revert events to it via the
 auto-generated `rp-audit-app` Secret's `uri` key.
 
+### Without the bundled Prometheus
+
+If you disable `kube-prometheus-stack`, also disable the operator's
+`ServiceMonitor` and `PrometheusRule` (their CRDs come from the bundled
+Prometheus Operator):
+
+```bash
+helm install rp oci://ghcr.io/vedooo/charts/reactive-policy-stack \
+  --set kube-prometheus-stack.enabled=false \
+  --set reactive-policy.serviceMonitor.enabled=false \
+  --set reactive-policy.prometheusRule.enabled=false
+```
+
+### Bring your own Postgres
+
 To bring your own Postgres instead, leave `audit.enabled=false` and
 `cloudnative-pg.enabled=false`, point the operator at your existing instance:
 

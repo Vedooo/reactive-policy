@@ -34,6 +34,9 @@ For the operator to actually forward events, both flags must be set:
   --set cloudnative-pg.enabled=true
   --set reactive-policy.audit.sink=postgres
 
+Note: the audit Cluster persists past `helm uninstall` (helm.sh/resource-policy: keep).
+To remove it: kubectl delete cluster {{ .Values.audit.clusterName }} -n {{ .Release.Namespace }}
+
 Verify after rollout:
   kubectl exec -n {{ .Release.Namespace }} {{ .Values.audit.clusterName }}-1 -- \
     psql -U rp -d audit -c "SELECT count(*) FROM action_executions"
