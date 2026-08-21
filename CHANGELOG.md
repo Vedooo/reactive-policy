@@ -51,6 +51,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The validating webhook rejects a pipeline with more than one gated action — a
   single trigger cannot need two separate decisions — and enforces the
   `approvalTimeout` bounds.
+- Both charts move to `0.4.0`.
+
+### Fixed
+
+- The Helm chart's bundled CRDs were a hand-copied snapshot of the generated
+  ones and had drifted. Helm installs `crds/` verbatim, so any API field added
+  since the last manual copy was silently pruned on a chart install. `make
+  manifests` now refreshes the chart copies as part of generation, and CI fails
+  if generated output is not committed (`make verify-manifests`), so the two
+  cannot diverge again.
 
 ## [0.3.1] - 2026-08-21
 

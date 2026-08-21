@@ -44,8 +44,28 @@ help: ## Display this help.
 ##@ Development
 
 .PHONY: manifests
-manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
+manifests: controller-gen sync-crds ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
+
+.PHONY: generate-manifests
+generate-manifests: controller-gen
 	$(CONTROLLER_GEN) rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+
+.PHONY: sync-crds
+sync-crds: generate-manifests ## Copy the generated CRDs into the Helm chart.
+	# The chart ships its own copies under crds/, which Helm installs verbatim
+	# and never templates. They are a plain copy of the generated CRDs, so they
+	# have to be refreshed whenever the API changes — a stale copy silently
+	# prunes new fields on a chart install.
+	cp config/crd/bases/*.yaml charts/reactive-policy/crds/
+
+.PHONY: verify-manifests
+verify-manifests: manifests generate ## Fail if generated output is not committed.
+	@if [ -n "$$(git status --porcelain)" ]; then \
+		echo "Generated output is out of date. Run 'make manifests generate' and commit the result:"; \
+		git status --porcelain; \
+		git diff; \
+		exit 1; \
+	fi
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
