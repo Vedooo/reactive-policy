@@ -7,11 +7,11 @@ description: >-
 type: application
 
 # version is the chart version (semver). Bumped on any chart change.
-version: 0.3.0
+version: 0.3.1
 
 # appVersion is the reactive-policy release the chart deploys by default. It is
 # used as the container image tag when image.tag is left empty.
-appVersion: "0.3.0"
+appVersion: "0.3.1"
 
 home: https://github.com/Vedooo/reactive-policy
 icon: https://raw.githubusercontent.com/Vedooo/reactive-policy/main/docs/assets/logo.svg
@@ -41,7 +41,7 @@ annotations:
       url: https://github.com/Vedooo/reactive-policy/blob/main/CHANGELOG.md
   artifacthub.io/images: |
     - name: reactive-policy
-      image: ghcr.io/vedooo/reactive-policy:0.3.0
+      image: ghcr.io/vedooo/reactive-policy:0.3.1
   artifacthub.io/crds: |
     - kind: ReactivePolicy
       version: v1alpha1

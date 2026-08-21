@@ -6,6 +6,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-08-21
+
+### Changed
+
+- Bump grouped Go dependencies (Dependabot): Kubernetes API/client modules
+  0.36.2 → 0.36.3, `prometheus/client_golang` 1.23.2 → 1.24.1,
+  `prometheus/common` 0.68.1 → 0.70.1, `ginkgo/v2` 2.31.0 → 2.32.0, `gomega`
+  1.42.0 → 1.42.1, `go-logr/logr` 1.4.3 → 1.4.4, plus several `golang.org/x/*`
+  patch bumps. This release exists to republish the operator image on the
+  refreshed dependency set; there are no functional changes.
+- Bump grouped GitHub Actions (Dependabot) across the CI, release, and docs
+  workflows: `actions/checkout` v6 → v7, `actions/setup-go` v6 → v7,
+  `actions/setup-python` v6 → v7, `DavidAnson/markdownlint-cli2-action`
+  v23 → v24.
+- `docs/ROADMAP.md` now records v0.3 under "Shipped since v0.1.0" and lists a
+  human approval gate for high-blast-radius actions as the next item.
+
 ## [0.3.0] - 2026-06-21
 
 ### Fixed
@@ -146,7 +163,8 @@ The 0.1.0 release was built incrementally; the pre-release tags map to:
   that survives operator restarts.
 - **v0.0.7** — self-observability: metrics, Grafana dashboard, and alert rules.
 
-[Unreleased]: https://github.com/Vedooo/reactive-policy/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/Vedooo/reactive-policy/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/Vedooo/reactive-policy/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/Vedooo/reactive-policy/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/Vedooo/reactive-policy/releases/tag/v0.2.1
 [0.2.0]: https://github.com/Vedooo/reactive-policy/releases/tag/v0.2.0
