@@ -22,7 +22,7 @@ Pin a version with `--version <x.y.z>`. List versions with
 - The operator (one active replica via leader election)
 - `ReactivePolicy` and `ActionAudit` CRDs
 - A ClusterRole/RBAC covering the built-in plugins
-- Optional: metrics service, `ServiceMonitor`, `PrometheusRule`, validating webhook
+- Optional: metrics service, `ServiceMonitor`, `PrometheusRule`, admission webhooks
 
 ## A first policy
 
@@ -66,8 +66,57 @@ Common values (the full, documented list is in
 | `metrics.enabled` | `true` | Expose the operator's Prometheus metrics |
 | `serviceMonitor.enabled` | `false` | Create a `ServiceMonitor` for the Prometheus Operator |
 | `prometheusRule.enabled` | `false` | Ship the example alerting rules |
-| `webhook.enabled` | `false` | Enable the validating webhook (requires cert-manager) |
+| `webhook.enabled` | `false` | Enable the admission webhooks (see below) |
+| `webhook.certManager.enabled` | `true` | Issue the serving cert with cert-manager |
+| `webhook.failurePolicy` | `Fail` | Reject writes when the webhook is unreachable |
 | `leaderElection.enabled` | `true` | Leader election for HA |
+
+## Admission webhooks
+
+Off by default so the chart installs without cert-manager. Enabling it creates
+two configurations:
+
+- **Validation** rejects invalid policies at admission — unknown plugins, bad
+  params, irreversible actions without `allowIrreversible`, out-of-range
+  timings, and more than one approval gate in a pipeline.
+- **Approval** stamps the approver's identity onto a decision from the
+  authenticated admission request, makes decisions write-once, and refuses a
+  verdict on a gate that has expired or already closed.
+
+That second one matters if you use approval gates. Kubernetes does not record
+who set a field, so without the webhook `decidedBy` is only whatever the client
+wrote — the gate still holds the pipeline, but the record cannot prove who
+approved it. The operator logs a warning at startup when webhooks are off.
+
+With cert-manager in the cluster (the chart creates a self-signed `Issuer` and
+`Certificate`):
+
+```bash
+helm install reactive-policy oci://ghcr.io/vedooo/charts/reactive-policy \
+  --namespace reactive-policy --create-namespace \
+  --set webhook.enabled=true
+```
+
+To sign with your own issuer instead:
+
+```bash
+  --set webhook.certManager.issuerRef.name=my-ca \
+  --set webhook.certManager.issuerRef.kind=ClusterIssuer
+```
+
+To skip cert-manager entirely, supply a Secret holding `tls.crt`/`tls.key` plus
+the base64-encoded CA that signed it:
+
+```bash
+  --set webhook.certManager.enabled=false \
+  --set webhook.existingSecret=my-webhook-tls \
+  --set webhook.caBundle=$(base64 -w0 < ca.crt)
+```
+
+`webhook.failurePolicy` defaults to `Fail`, so an unreachable webhook rejects
+the write rather than admitting an unvalidated policy or an unstamped approval.
+Set it to `Ignore` only if you would rather lose those guarantees than block
+writes while the operator is down.
 
 ## Links
 

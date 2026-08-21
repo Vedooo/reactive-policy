@@ -45,6 +45,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `Executor.RunRange` executes a slice of a pipeline, which is how a gate splits
   one. Rollback stays inside the half that ran: actions released by an approval
   cannot reverse actions audited as complete before the approver looked.
+- **The chart can now actually install the webhooks.** `webhook.enabled=true`
+  previously only flipped `ENABLE_WEBHOOKS` on the operator — no webhook
+  configurations were ever created, so nothing was intercepted. The chart now
+  renders a webhook `Service`, both `ValidatingWebhookConfiguration` and
+  `MutatingWebhookConfiguration`, and mounts a serving certificate. Three cert
+  paths are supported: a self-signed cert-manager `Issuer` and `Certificate`
+  created by the chart (default), your own issuer via
+  `webhook.certManager.issuerRef`, or a bring-your-own Secret via
+  `webhook.existingSecret` + `webhook.caBundle`. `webhook.failurePolicy`
+  defaults to `Fail`. Still off by default, so a plain install needs no
+  cert-manager.
 
 ### Changed
 

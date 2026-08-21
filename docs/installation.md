@@ -61,12 +61,17 @@ helm upgrade --install reactive-policy oci://ghcr.io/vedooo/charts/reactive-poli
 
 See [Observability](observability.md) for the dashboard and alerts.
 
-### Optional: validating webhook
+### Optional: admission webhooks
 
-The webhook rejects invalid policies at admission (bad bounds, irreversible
-actions without `allowIrreversible`, unknown plugin params). It is **off by
-default** so the chart installs on a fresh cluster with no dependencies. To
-enable it you need [cert-manager](https://cert-manager.io/):
+Two webhooks ship with the operator. The **validating** one rejects invalid
+policies at admission (bad bounds, irreversible actions without
+`allowIrreversible`, unknown plugin params, more than one approval gate). The
+**approval** one stamps the approver's identity onto an approval decision from
+the authenticated admission request, makes decisions write-once, and refuses a
+verdict on a gate that has expired or already closed.
+
+They are **off by default** so the chart installs on a fresh cluster with no
+dependencies. Enabling them needs [cert-manager](https://cert-manager.io/):
 
 ```bash
 helm upgrade --install reactive-policy oci://ghcr.io/vedooo/charts/reactive-policy \
@@ -74,8 +79,22 @@ helm upgrade --install reactive-policy oci://ghcr.io/vedooo/charts/reactive-poli
   --set webhook.enabled=true
 ```
 
-With the webhook off, invalid policies are still caught — at reconcile time,
+The chart creates a self-signed `Issuer` and `Certificate` and lets cert-manager
+inject the CA bundle. To sign with your own issuer, set
+`webhook.certManager.issuerRef`; to skip cert-manager entirely, set
+`webhook.certManager.enabled=false` and supply `webhook.existingSecret` plus
+`webhook.caBundle`. See the
+[chart README](https://github.com/Vedooo/reactive-policy/blob/main/charts/reactive-policy/README.md)
+for both.
+
+With the webhooks off, invalid policies are still caught — at reconcile time,
 surfaced on the policy's status conditions rather than rejected at admission.
+
+**If you use approval gates, enable the webhooks.** Kubernetes does not record
+who set a field, so without the approval webhook `decidedBy` is only what the
+client wrote. The gate still holds the pipeline and still expires closed, but
+the record cannot prove who approved it and a decision can be overwritten. The
+operator logs a warning at startup when webhooks are disabled.
 
 ## Verify
 
