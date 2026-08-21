@@ -36,12 +36,15 @@ demo        error-rate-guard   Watching   -                0       0.012   2m
 
 ## `rp action`
 
-Inspect and revert recorded executions. (Aliases: `actions`, `audit`.)
+Inspect, approve, and revert recorded executions. (Aliases: `actions`, `audit`.)
 
 ```bash
 rp action audit -n <ns>              # recent triggers, one row each
 rp action history <policy> -n <ns>   # per-action history for one policy
 rp action revert <audit-name> -n <ns>
+rp action pending -n <ns>            # pipelines holding for a decision
+rp action approve <audit-name> -n <ns> [--reason "..."]
+rp action deny <audit-name> -n <ns> [--reason "..."]
 ```
 
 ```console
@@ -52,6 +55,22 @@ error-rate-guard-2z7jk   error-rate-guard   23s ago     1         Succeeded   fa
 
 `revert` requests the operator to reverse a recorded trigger's reversible
 actions; the operator performs the reversal and marks the audit `REVERTED`.
+
+`pending` lists gated pipelines waiting on a human, with the evidence needed to
+judge them — the metric value that triggered, what is held, how many resources
+it would touch, and how long is left before the gate is denied:
+
+```console
+$ rp action pending -n demo
+NAME                     POLICY             METRIC   HELD              TARGETS   EXPIRES IN
+error-rate-guard-8x2mq   error-rate-guard   0.42     network.isolate   2         27m14s
+```
+
+`approve` releases the held actions; `deny` records a refusal and they never
+run. Neither command names the approver — the admission webhook stamps that from
+the authenticated request, so `decidedBy` on the record is whoever the API
+server says made the call. A decision is write-once, and a gate that has already
+expired accepts neither verdict.
 
 ## `rp plugin`
 

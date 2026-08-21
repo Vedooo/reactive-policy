@@ -1,0 +1,56 @@
+---
+# A pipeline that splits at a human. The notification and the annotation fire
+# the moment the condition is sustained, so people learn about it during the
+# incident; quarantining the workload waits for someone to say yes.
+#
+# The operator writes the ActionAudit before the gated action rather than after,
+# so the record an approver reads is the same object they decide on:
+#
+#   rp action pending -n demo
+#   rp action approve <audit-name> -n demo --reason "confirmed, isolating"
+#
+# If nobody answers within approvalTimeout the gate is denied and the isolation
+# never runs.
+apiVersion: reactive-policy.io/v1alpha1
+kind: ReactivePolicy
+metadata:
+  name: pod-compromise-containment
+  namespace: demo
+spec:
+  target:
+    selector:
+      matchLabels:
+        app: payments-api
+    kinds:
+      - apiVersion: apps/v1
+        kind: Deployment
+    maxResources: 3
+  observe:
+    source: prometheus
+    endpoint: http://prometheus.monitoring:9090
+    query: |
+      sum(rate(egress_connections_total{app="payments-api",destination!~"internal"}[5m]))
+    threshold: "50"
+    operator: GreaterThan
+    duration: 5m
+    pollInterval: 30s
+  actions:
+    # Runs immediately — someone needs to know a gate just opened.
+    - plugin: notify.slack
+      params:
+        webhookSecretRef:
+          name: slack-webhook
+          key: url
+        channel: "#security-incidents"
+    # Runs immediately — mark the resource while the evidence is fresh.
+    - plugin: k8s.annotate
+      params:
+        key: reactive-policy.io/incident
+        value: "unexpected egress {{ .MetricValue }} at {{ .Timestamp }}"
+    # Holds here. Cutting a payments workload off the network is not something
+    # to discover in the audit trail afterwards.
+    - plugin: network.isolate
+      requiresApproval: true
+  approvalTimeout: 20m
+  cooldown: 30m
+  maxTriggersPerHour: 2

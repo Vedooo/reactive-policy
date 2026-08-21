@@ -39,7 +39,7 @@ func (r *ReactivePolicyReconciler) writeAudit(ctx context.Context, policy *v1alp
 		// #nosec G115 -- an action pipeline has a handful of entries; the index
 		// cannot approach the int32 limit.
 		idx := int32(i)
-		records = append(records, r.toRecord(idx, results[i]))
+		records = append(records, toRecord(r.Executor, idx, results[i]))
 	}
 
 	audit := &v1alpha1.ActionAudit{
@@ -65,6 +65,81 @@ func (r *ReactivePolicyReconciler) writeAudit(ctx context.Context, policy *v1alp
 		}
 	}
 	return nil
+}
+
+// writeGatedAudit persists the record for a pipeline that stopped at a gated
+// action. Unlike writeAudit this record is not final: it holds the actions that
+// already ran, the evidence an approver needs to judge the ones that have not,
+// and an expiry after which the gate is denied. The audit reconciler completes
+// it when a decision arrives (ADR-011).
+func (r *ReactivePolicyReconciler) writeGatedAudit(
+	ctx context.Context,
+	policy *v1alpha1.ReactivePolicy,
+	triggeredAt metav1.Time,
+	results []action.Result,
+	gateIdx int,
+	targets []action.Target,
+) (*v1alpha1.ActionAudit, error) {
+	records := make([]v1alpha1.ActionRecord, 0, len(results))
+	for i := range results {
+		// #nosec G115 -- an action pipeline has a handful of entries; the index
+		// cannot approach the int32 limit.
+		records = append(records, toRecord(r.Executor, int32(i), results[i]))
+	}
+
+	pending := make([]string, 0, len(policy.Spec.Actions)-gateIdx)
+	for i := gateIdx; i < len(policy.Spec.Actions); i++ {
+		pending = append(pending, policy.Spec.Actions[i].Plugin)
+	}
+	held := make([]v1alpha1.AuditTarget, 0, len(targets))
+	for i := range targets {
+		held = append(held, v1alpha1.AuditTarget{
+			APIVersion: targets[i].APIVersion,
+			Kind:       targets[i].Kind,
+			Name:       targets[i].Name,
+			Namespace:  targets[i].Namespace,
+		})
+	}
+
+	audit := &v1alpha1.ActionAudit{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: policy.Name + "-",
+			Namespace:    policy.Namespace,
+			Labels:       map[string]string{v1alpha1.LabelPolicy: policy.Name},
+		},
+		Spec: v1alpha1.ActionAuditSpec{
+			PolicyRef:   policy.Name,
+			PolicyUID:   string(policy.UID),
+			TriggeredAt: triggeredAt,
+			MetricValue: policy.Status.CurrentMetricValue,
+			Actions:     records,
+			Gate: &v1alpha1.ApprovalGate{
+				// #nosec G115 -- bounded by the pipeline length.
+				ActionIndex:    int32(gateIdx),
+				PendingPlugins: pending,
+				Targets:        held,
+				ExpiresAt:      metav1.Time{Time: triggeredAt.Add(approvalTimeoutOrDefault(policy))},
+			},
+		},
+	}
+	if err := r.Create(ctx, audit); err != nil {
+		return nil, fmt.Errorf("creating gated audit record: %w", err)
+	}
+
+	// The phase lives in status, which Create does not persist, so it needs its
+	// own write. Without it the record would read as ungated and the pipeline
+	// would never resume.
+	audit.Status.ApprovalPhase = v1alpha1.PhasePending
+	if err := r.Status().Update(ctx, audit); err != nil {
+		return nil, fmt.Errorf("marking audit record pending: %w", err)
+	}
+
+	if s := r.AuditSink; s != nil && len(records) > 0 {
+		if err := s.RecordTrigger(ctx, buildSinkEvents(audit)); err != nil {
+			log.FromContext(ctx).Error(err, "audit sink: recording trigger", "audit", audit.Name)
+		}
+	}
+	return audit, nil
 }
 
 func buildSinkEvents(audit *v1alpha1.ActionAudit) []sink.Event {
@@ -100,7 +175,10 @@ func buildSinkEvents(audit *v1alpha1.ActionAudit) []sink.Event {
 
 // toRecord maps an executor Result onto its serialized ActionRecord, resolving
 // reversibility from the registry and marshaling plugin Details to raw JSON.
-func (r *ReactivePolicyReconciler) toRecord(index int32, res action.Result) v1alpha1.ActionRecord {
+// Both reconcilers write records — the policy one at trigger time, the audit one
+// when an approved gate releases the actions it held — so it takes the executor
+// rather than hanging off either receiver.
+func toRecord(exec *action.Executor, index int32, res action.Result) v1alpha1.ActionRecord {
 	rec := v1alpha1.ActionRecord{
 		Index:    index,
 		ActionID: res.ActionID,
@@ -114,7 +192,7 @@ func (r *ReactivePolicyReconciler) toRecord(index int32, res action.Result) v1al
 		Status:  string(res.Status),
 		Message: res.Message,
 	}
-	if plugin := r.Executor.Lookup(res.PluginName); plugin != nil {
+	if plugin := exec.Lookup(res.PluginName); plugin != nil {
 		rec.Reversible = plugin.IsReversible()
 	}
 	if len(res.Details) > 0 {

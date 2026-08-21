@@ -308,3 +308,122 @@ func TestPluginListUsesDefaultRegistryByDefault(t *testing.T) {
 		t.Errorf("plugin list should always print a header:\n%s", buf.String())
 	}
 }
+
+// pendingAudit builds an audit record holding an open gate, as the operator
+// would have written it.
+func pendingAudit(name, policy string, expiresIn time.Duration) *v1alpha1.ActionAudit {
+	a := &v1alpha1.ActionAudit{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: "default",
+			Labels:    map[string]string{v1alpha1.LabelPolicy: policy},
+		},
+		Spec: v1alpha1.ActionAuditSpec{
+			PolicyRef:   policy,
+			TriggeredAt: metav1.Now(),
+			MetricValue: "0.42",
+			Actions: []v1alpha1.ActionRecord{
+				{Index: 0, Plugin: "notify.slack", Status: "Succeeded"},
+			},
+			Gate: &v1alpha1.ApprovalGate{
+				ActionIndex:    1,
+				PendingPlugins: []string{"network.isolate"},
+				Targets:        []v1alpha1.AuditTarget{{Kind: "Deployment", Name: "api"}},
+				ExpiresAt:      metav1.Time{Time: time.Now().Add(expiresIn)},
+			},
+		},
+	}
+	a.Status.ApprovalPhase = v1alpha1.PhasePending
+	return a
+}
+
+func TestActionPendingListsOpenGates(t *testing.T) {
+	root, _, buf := newTestCLI(t,
+		pendingAudit("held-1", "api-guard", time.Hour),
+		sampleAudit("done-1", "api-guard", time.Now(), "Succeeded"),
+	)
+	if err := execCLI(root, "action", "pending"); err != nil {
+		t.Fatalf("action pending: %v", err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "held-1") {
+		t.Errorf("open gate missing from output:\n%s", out)
+	}
+	if strings.Contains(out, "done-1") {
+		t.Errorf("a completed record should not be listed as pending:\n%s", out)
+	}
+	if !strings.Contains(out, "network.isolate") {
+		t.Errorf("the held plugin is the evidence the approver needs:\n%s", out)
+	}
+}
+
+func TestActionApproveRecordsTheDecision(t *testing.T) {
+	audit := pendingAudit("held-2", "api-guard", time.Hour)
+	root, f, buf := newTestCLI(t, audit)
+
+	if err := execCLI(root, "action", "approve", "held-2", "--reason", "confirmed bad deploy"); err != nil {
+		t.Fatalf("action approve: %v", err)
+	}
+	if !strings.Contains(buf.String(), "approved") {
+		t.Errorf("expected confirmation output, got:\n%s", buf.String())
+	}
+
+	c, err := f.client()
+	if err != nil {
+		t.Fatalf("client: %v", err)
+	}
+	var got v1alpha1.ActionAudit
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "held-2", Namespace: "default"}, &got); err != nil {
+		t.Fatalf("re-reading audit: %v", err)
+	}
+	if got.Spec.Gate.Decision != v1alpha1.DecisionApproved {
+		t.Errorf("decision = %q, want Approved", got.Spec.Gate.Decision)
+	}
+	if got.Spec.Gate.Reason != "confirmed bad deploy" {
+		t.Errorf("reason = %q, want it recorded", got.Spec.Gate.Reason)
+	}
+	// The CLI must not name the approver; only the webhook may.
+	if got.Spec.Gate.DecidedBy != "" {
+		t.Errorf("decidedBy = %q, want empty — identity is stamped at admission", got.Spec.Gate.DecidedBy)
+	}
+}
+
+func TestActionDenyRecordsTheDecision(t *testing.T) {
+	root, f, _ := newTestCLI(t, pendingAudit("held-3", "api-guard", time.Hour))
+	if err := execCLI(root, "action", "deny", "held-3"); err != nil {
+		t.Fatalf("action deny: %v", err)
+	}
+	c, _ := f.client()
+	var got v1alpha1.ActionAudit
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "held-3", Namespace: "default"}, &got); err != nil {
+		t.Fatalf("re-reading audit: %v", err)
+	}
+	if got.Spec.Gate.Decision != v1alpha1.DecisionDenied {
+		t.Errorf("decision = %q, want Denied", got.Spec.Gate.Decision)
+	}
+}
+
+func TestActionApproveRefusesClosedAndLapsedGates(t *testing.T) {
+	t.Run("expired", func(t *testing.T) {
+		root, _, _ := newTestCLI(t, pendingAudit("held-4", "api-guard", -time.Minute))
+		if err := execCLI(root, "action", "approve", "held-4"); err == nil {
+			t.Error("approving a lapsed gate should fail")
+		}
+	})
+
+	t.Run("already decided", func(t *testing.T) {
+		audit := pendingAudit("held-5", "api-guard", time.Hour)
+		audit.Status.ApprovalPhase = v1alpha1.PhaseApproved
+		root, _, _ := newTestCLI(t, audit)
+		if err := execCLI(root, "action", "approve", "held-5"); err == nil {
+			t.Error("approving a gate that already reached a terminal phase should fail")
+		}
+	})
+
+	t.Run("no gate", func(t *testing.T) {
+		root, _, _ := newTestCLI(t, sampleAudit("plain-1", "api-guard", time.Now(), "Succeeded"))
+		if err := execCLI(root, "action", "approve", "plain-1"); err == nil {
+			t.Error("approving a record with no gate should fail")
+		}
+	})
+}

@@ -60,7 +60,55 @@ built to fail safe.
 | **Hourly rate limit** | `maxTriggersPerHour` caps runaway behavior, counted from persisted audits (restart-safe). |
 | **Target cap** | `maxResources` refuses to act on an unexpectedly large match set. |
 | **Reversibility** | Irreversible actions require `allowIrreversible: true`; reversible ones undo with `rp action revert`. |
+| **Human approval** | An action marked `requiresApproval: true` holds the pipeline until someone decides; an unanswered gate is denied. |
 | **Audit trail** | One queryable `ActionAudit` per trigger: when, metric value, targets, outcomes. |
+
+## Approval gates
+
+Reversibility covers most of what approval usually buys: act now, undo cheaply,
+prove afterwards. Where it stops covering is the irreversible opt-in and
+anything with a wide blast radius — quarantining a workload or draining
+production traffic is not something to discover in the audit trail afterwards.
+
+Mark the destructive step and the pipeline splits at it:
+
+```yaml
+actions:
+  - plugin: notify.slack        # runs immediately, during the incident
+  - plugin: k8s.annotate        # runs immediately
+  - plugin: network.isolate     # holds here
+    requiresApproval: true
+approvalTimeout: 30m
+```
+
+The actions ahead of the gate still fire at trigger time, so people find out
+what is happening while the gate is open. The operator writes the `ActionAudit`
+**before** the gated action rather than after, which makes the record the thing
+you approve as well as the thing you read later — it carries the metric value,
+what already ran, what is held, and exactly which resources it would touch:
+
+```bash
+rp action pending -n demo                    # what is waiting, and for how long
+rp action approve <audit-name> -n demo --reason "confirmed bad deploy"
+rp action deny <audit-name> -n demo
+```
+
+Four behaviours are worth knowing:
+
+- **Expiry denies.** Nothing runs if nobody answers within `approvalTimeout`.
+- **The policy stays quiet while a gate is open.** The metric is still bad —
+  that is why someone is being asked — so re-triggering would queue a second
+  identical request behind the first.
+- **Cooldown starts at the decision, not the trigger.** Twenty minutes of
+  deliberation does not eat the quiet period that is meant to follow the action.
+- **The blast radius is frozen.** Targets are resolved at trigger time and
+  recorded on the gate; a resource that starts matching while the gate is open
+  is not touched, because the approver never saw it.
+
+Who approved is stamped by the admission webhook from the authenticated request,
+not taken from the object, so the record cannot name someone who did not decide.
+With webhooks disabled the gate still holds the pipeline, but that guarantee —
+and write-once decisions — go with it.
 
 ## Targets and fan-out
 

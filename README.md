@@ -94,6 +94,14 @@ ArgoCD app's auto-sync, annotates the matched resources, and posts to Slack —
 before anyone wakes up. Every run is an `ActionAudit`; the suspend is reversed
 with a single `rp action revert`.
 
+Not everything should fire unattended. Mark a destructive step
+`requiresApproval: true` and the pipeline splits there: the notification and the
+annotation still run during the incident, while the destructive action waits for
+`rp action approve`. The audit record is written *before* the gated action, so
+the thing you approve and the thing you read afterwards are the same object —
+and if nobody answers within `approvalTimeout`, the gate is denied rather than
+released.
+
 ## Quick start
 
 Install the operator with Helm (OCI chart):
@@ -137,6 +145,7 @@ Every trigger passes through the same gates, in order:
 | **Hourly rate limit** | `maxTriggersPerHour` caps runaway behavior — counted from persisted `ActionAudit` records, so it **survives operator restarts**. |
 | **Target cap** | `maxResources` refuses to act if the selector matches more resources than expected — no accidental fan-out. |
 | **Reversibility** | Irreversible actions require an explicit `allowIrreversible: true`; reversible ones undo with `rp action revert`. |
+| **Human approval** | An action marked `requiresApproval: true` holds the pipeline before it runs; the actions ahead of the gate still fire, and an unanswered gate is denied. |
 | **Audit trail** | One queryable `ActionAudit` per trigger: when, which metric value, which targets, which outcomes. |
 
 ## The `rp` CLI
@@ -151,6 +160,9 @@ rp policy describe <name>       # full configuration, status, and conditions
 rp policy dry-run policy.yaml   # simulate against live metrics, mutate nothing
 rp action audit                 # recent triggers and outcomes
 rp action history <policy>      # per-action history for one policy
+rp action pending               # pipelines holding for an approval decision
+rp action approve <audit-name>  # release the actions a gate is holding
+rp action deny <audit-name>     # refuse a gate; its held actions never run
 rp action revert <audit-name>   # ask the operator to reverse a recorded run
 rp plugin list                  # installed plugins and their permissions
 ```

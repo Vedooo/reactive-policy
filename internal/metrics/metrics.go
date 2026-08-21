@@ -90,6 +90,37 @@ var (
 		Name: "reactive_policy_plugin_validation_errors_total",
 		Help: "Total plugin validation failures at admission by plugin.",
 	}, []string{"plugin"})
+
+	// ApprovalGatesOpenedTotal counts pipelines that stopped for a human
+	// decision, by namespace.
+	ApprovalGatesOpenedTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "reactive_policy_approval_gates_opened_total",
+		Help: "Total action pipelines that stopped at an approval gate by namespace.",
+	}, []string{"namespace"})
+
+	// ApprovalDecisionsTotal counts how gates were resolved. The "expired"
+	// outcome is the one worth alerting on: it means nobody answered in time and
+	// the actions were dropped.
+	ApprovalDecisionsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "reactive_policy_approval_decisions_total",
+		Help: "Total approval gate resolutions by namespace and outcome (approved, denied, expired).",
+	}, []string{"namespace", "outcome"})
+
+	// ApprovalWaitSeconds measures how long gates waited before resolving. The
+	// buckets span seconds to hours because the interesting tail is the gate
+	// nobody noticed.
+	ApprovalWaitSeconds = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "reactive_policy_approval_wait_seconds",
+		Help:    "Time a pipeline spent holding for an approval decision, by outcome.",
+		Buckets: []float64{10, 30, 60, 300, 900, 1800, 3600, 7200, 21600},
+	}, []string{"outcome"})
+
+	// ApprovalGatesPending is the number of gates currently waiting. A gate that
+	// stays here is a pipeline nobody has looked at.
+	ApprovalGatesPending = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "reactive_policy_approval_gates_pending",
+		Help: "Approval gates currently waiting for a decision by namespace.",
+	}, []string{"namespace"})
 )
 
 func init() {
@@ -102,6 +133,10 @@ func init() {
 		RateLimitedTotal,
 		PrometheusQueryErrorsTotal,
 		PluginValidationErrorsTotal,
+		ApprovalGatesOpenedTotal,
+		ApprovalDecisionsTotal,
+		ApprovalWaitSeconds,
+		ApprovalGatesPending,
 	)
 }
 
@@ -138,6 +173,22 @@ func RecordRateLimited(namespace string) {
 // RecordQueryError increments the metric-source query error counter.
 func RecordQueryError() {
 	PrometheusQueryErrorsTotal.Inc()
+}
+
+// RecordGateOpened counts a pipeline that stopped for approval and marks it
+// pending.
+func RecordGateOpened(namespace string) {
+	ApprovalGatesOpenedTotal.WithLabelValues(namespace).Inc()
+	ApprovalGatesPending.WithLabelValues(namespace).Inc()
+}
+
+// RecordGateResolved counts a gate resolution, records how long it waited, and
+// clears it from the pending gauge. Outcome is one of "approved", "denied", or
+// "expired".
+func RecordGateResolved(namespace, outcome string, waited float64) {
+	ApprovalDecisionsTotal.WithLabelValues(namespace, outcome).Inc()
+	ApprovalWaitSeconds.WithLabelValues(outcome).Observe(waited)
+	ApprovalGatesPending.WithLabelValues(namespace).Dec()
 }
 
 // RecordValidationError increments the plugin validation error counter.

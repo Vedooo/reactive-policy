@@ -56,3 +56,29 @@ helm upgrade --install reactive-policy oci://ghcr.io/vedooo/charts/reactive-poli
 
 See [Architecture](ARCHITECTURE.md) for how the metrics are wired into the
 controller and executor.
+
+## Approval gate metrics
+
+Gated pipelines add four series. The one to alert on is `..._decisions_total`
+with `outcome="expired"`: it means a pipeline asked for a decision, nobody
+answered, and the actions were dropped.
+
+| Metric | Type | Labels | Meaning |
+|---|---|---|---|
+| `reactive_policy_approval_gates_opened_total` | counter | `namespace` | Pipelines that stopped for a human decision. |
+| `reactive_policy_approval_decisions_total` | counter | `namespace`, `outcome` | Gate resolutions: `approved`, `denied`, `expired`. |
+| `reactive_policy_approval_wait_seconds` | histogram | `outcome` | How long a gate waited before resolving. |
+| `reactive_policy_approval_gates_pending` | gauge | `namespace` | Gates currently waiting. A gate that lingers here is one nobody has looked at. |
+
+A pending gate is an ordinary object in the cluster, so it is visible from
+anywhere someone already looks — and because the count is a metric, an approval
+nobody has noticed can page through the same Alertmanager that started the
+incident:
+
+```yaml
+- alert: ReactivePolicyApprovalPending
+  expr: reactive_policy_approval_gates_pending > 0
+  for: 10m
+  annotations:
+    summary: "An action pipeline has been waiting on a human for 10 minutes"
+```

@@ -81,6 +81,16 @@ spec:
                     plugin:
                       description: Plugin is the registered plugin name, e.g. "notify.slack".
                       type: string
+                    requiresApproval:
+                      default: false
+                      description: |-
+                        RequiresApproval holds the pipeline immediately before this action until a
+                        human decides. Actions ahead of the gate still run at trigger time, so a
+                        pipeline can notify and annotate straight away and hold only its
+                        destructive step. This action and every action after it wait for
+                        `rp action approve`, and an undecided gate is denied once the policy's
+                        approvalTimeout elapses (see ADR-011).
+                      type: boolean
                   required:
                   - plugin
                   type: object
@@ -92,6 +102,15 @@ spec:
                   AllowIrreversible permits actions whose plugins are not reversible. When
                   false, the webhook rejects such policies.
                 type: boolean
+              approvalTimeout:
+                default: 30m
+                description: |-
+                  ApprovalTimeout is how long a gated pipeline waits for a human decision
+                  before the gate is denied. It is fail-closed by design: an expired gate
+                  never runs the actions held behind it. Only meaningful when some action
+                  sets requiresApproval. Bounds (min 1m, max 24h) are enforced by the
+                  validating webhook.
+                type: string
               audit:
                 description: Audit configures ActionAudit record retention.
                 properties:
@@ -371,11 +390,19 @@ spec:
                   trigger.
                 format: date-time
                 type: string
+              pendingGateRef:
+                description: |-
+                  PendingGateRef is the name of the ActionAudit holding an open approval
+                  gate for this policy. While it is set the policy will not trigger again,
+                  so a metric that stays bad cannot queue a second gate behind the first.
+                  The controller clears it once the gate is decided or expires.
+                type: string
               state:
                 description: State is a coarse summary of the policy's lifecycle position.
                 enum:
                 - Watching
                 - Triggering
+                - AwaitingApproval
                 - Cooldown
                 - RateLimited
                 - Invalid

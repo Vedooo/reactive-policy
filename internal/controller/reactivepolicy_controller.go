@@ -28,6 +28,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -44,11 +45,13 @@ const (
 	ConditionMetricSourceReachable = "MetricSourceReachable"
 	ConditionThresholdCrossed      = "ThresholdCrossed"
 	ConditionRateLimited           = "RateLimited"
+	ConditionAwaitingApproval      = "AwaitingApproval"
 
 	defaultPollInterval       = 30 * time.Second
 	defaultCooldown           = 5 * time.Minute
 	defaultMaxTriggersPerHour = 5
 	defaultMaxResources       = 10
+	defaultApprovalTimeout    = 30 * time.Minute
 )
 
 type ReactivePolicyReconciler struct {
@@ -87,6 +90,30 @@ func (r *ReactivePolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		pollInterval = defaultPollInterval
 	}
 	now := time.Now()
+
+	// Gate 0: an open approval gate. A pipeline that stopped for a human keeps
+	// the policy quiet until the decision lands. The metric that triggered it is
+	// still bad — that is the whole reason someone is being asked — so without
+	// this the next poll would queue a second gate behind the first and the
+	// approver would face a growing pile of identical requests (ADR-011).
+	if policy.Status.PendingGateRef != "" {
+		open, gateErr := r.gateStillOpen(ctx, &policy)
+		if gateErr != nil {
+			logger.Error(gateErr, "checking pending approval gate", "policy", key, "audit", policy.Status.PendingGateRef)
+			return r.requeue(ctx, &policy, pollInterval)
+		}
+		if open {
+			policy.Status.State = v1alpha1.StateAwaitingApproval
+			r.setCondition(&policy, ConditionAwaitingApproval, metav1.ConditionTrue, "AwaitingApproval",
+				fmt.Sprintf("pipeline is holding for a decision on %q", policy.Status.PendingGateRef))
+			r.setCondition(&policy, ConditionReady, metav1.ConditionTrue, "AwaitingApproval", "policy is valid and waiting for an approval decision")
+			return r.requeue(ctx, &policy, pollInterval)
+		}
+		// The gate closed. The audit reconciler owns starting the cooldown from
+		// the decision, so all that is left here is dropping the reference.
+		policy.Status.PendingGateRef = ""
+		r.setCondition(&policy, ConditionAwaitingApproval, metav1.ConditionFalse, "GateClosed", "no approval gate is open")
+	}
 
 	// Gate 1: cooldown. After a trigger the policy stays quiet for at least its
 	// cooldown (ADR-007). We exit before querying the metric source, per
@@ -203,14 +230,24 @@ func (r *ReactivePolicyReconciler) trigger(ctx context.Context, policy *v1alpha1
 		targets = []action.Target{{Namespace: policy.Namespace}}
 	}
 
-	// Run the full pipeline against each matched resource, collecting every
-	// result into a single per-trigger audit. One audit per trigger keeps the
+	// A gated pipeline runs only up to its gate now; the rest is held for a
+	// human. Everything before the gate still fires at trigger time, so a policy
+	// can notify and annotate immediately and hold only its destructive step
+	// (ADR-011).
+	gateIdx := action.GateIndex(policy)
+	runTo := len(policy.Spec.Actions)
+	if gateIdx >= 0 {
+		runTo = gateIdx
+	}
+
+	// Run the pipeline against each matched resource, collecting every result
+	// into a single per-trigger audit. One audit per trigger keeps the
 	// rate-limit count (ADR-009) and the audit history aligned with triggers
 	// rather than with individual actions or targets.
-	results := make([]action.Result, 0, len(targets)*len(policy.Spec.Actions))
+	results := make([]action.Result, 0, len(targets)*runTo)
 	var runErr error
 	for i := range targets {
-		res, err := r.Executor.Run(ctx, policy, targets[i], policy.Status.CurrentMetricValue)
+		res, err := r.Executor.RunRange(ctx, policy, targets[i], policy.Status.CurrentMetricValue, 0, runTo)
 		results = append(results, res...)
 		if err != nil {
 			runErr = err
@@ -218,15 +255,40 @@ func (r *ReactivePolicyReconciler) trigger(ctx context.Context, policy *v1alpha1
 	}
 
 	triggeredAt := metav1.Time{Time: now}
-	policy.Status.LastTriggeredAt = &triggeredAt
 	policy.Status.TriggerCount++
-	policy.Status.State = v1alpha1.StateTriggering
 	metrics.RecordTrigger(policy.Namespace)
 
 	// Persist the audit trail before returning (docs/ARCHITECTURE.md §6). A write
 	// failure is logged but does not fail the reconcile: re-running a
 	// possibly-destructive pipeline to retry the audit write is worse than a
 	// missing record.
+	if gateIdx >= 0 {
+		// The record is written before the gated action runs, so the approval
+		// token and the audit trail are one object. The policy holds until the
+		// audit reconciler resolves it, and its cooldown starts from the
+		// decision rather than from here — otherwise a slow approval would burn
+		// the quiet period that is supposed to follow the action.
+		audit, err := r.writeGatedAudit(ctx, policy, triggeredAt, results, gateIdx, targets)
+		if err != nil {
+			logger.Error(err, "writing gated audit record", "policy", key)
+			policy.Status.State = v1alpha1.StateTriggering
+		} else {
+			policy.Status.PendingGateRef = audit.Name
+			policy.Status.State = v1alpha1.StateAwaitingApproval
+			r.Limiter.Observe(policy.Namespace, policy.Name, now)
+			metrics.RecordGateOpened(policy.Namespace)
+			r.setCondition(policy, ConditionAwaitingApproval, metav1.ConditionTrue, "AwaitingApproval",
+				fmt.Sprintf("%d action(s) holding for approval on %q", len(policy.Spec.Actions)-gateIdx, audit.Name))
+			logger.Info("policy triggered and is holding for approval", "policy", key,
+				"audit", audit.Name, "targets", len(targets), "ran", len(results), "gateIndex", gateIdx)
+		}
+		r.Window.Forget(key)
+		return r.requeue(ctx, policy, pollInterval)
+	}
+
+	policy.Status.LastTriggeredAt = &triggeredAt
+	policy.Status.State = v1alpha1.StateTriggering
+
 	if err := r.writeAudit(ctx, policy, triggeredAt, results); err != nil {
 		logger.Error(err, "writing audit record", "policy", key)
 	} else {
@@ -240,6 +302,29 @@ func (r *ReactivePolicyReconciler) trigger(ctx context.Context, policy *v1alpha1
 		logger.Info("policy triggered", "policy", key, "targets", len(targets), "actions", len(results), "value", policy.Status.CurrentMetricValue)
 	}
 	return r.requeue(ctx, policy, pollInterval)
+}
+
+// gateStillOpen reports whether the audit named by status.pendingGateRef is
+// still waiting for a decision. A record that has been decided, expired, or
+// garbage-collected by the retention sweep leaves no gate behind.
+func (r *ReactivePolicyReconciler) gateStillOpen(ctx context.Context, policy *v1alpha1.ReactivePolicy) (bool, error) {
+	var audit v1alpha1.ActionAudit
+	nn := types.NamespacedName{Namespace: policy.Namespace, Name: policy.Status.PendingGateRef}
+	if err := r.Get(ctx, nn, &audit); err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("fetching pending gate record: %w", err)
+	}
+	return audit.Status.ApprovalPhase == v1alpha1.PhasePending, nil
+}
+
+// approvalTimeoutOrDefault resolves how long a gate waits before it is denied.
+func approvalTimeoutOrDefault(policy *v1alpha1.ReactivePolicy) time.Duration {
+	if policy.Spec.ApprovalTimeout.Duration > 0 {
+		return policy.Spec.ApprovalTimeout.Duration
+	}
+	return defaultApprovalTimeout
 }
 
 // resolveTargets lists the cluster resources selected by policy.Spec.Target

@@ -168,4 +168,68 @@ rollback), cloud VM ($5-20/month always-on).
 
 ---
 
+## ADR-011: Human approval as a pre-execution gate on the audit record
+
+**Status:** Accepted | **Date:** 2026-08-21
+
+**Context:** Until v0.3 the safety model was entirely post-hoc: bound the blast
+radius (sustained duration, cooldown, hourly cap, `maxResources`), make actions
+reversible, and prove what happened afterwards. Reversibility did the job
+approval would normally do — act now, undo cheaply, prove later. That argument
+breaks down in two places: the `allowIrreversible` opt-in, and actions whose
+blast radius is wide enough that you do not want to learn about them from the
+audit trail. Quarantining a workload or shifting production traffic are not
+things to discover after the fact.
+
+**Decision:** An action may set `requiresApproval: true`. The pipeline runs
+every action ahead of the gate at trigger time and stops there, writing its
+`ActionAudit` **before** the gated action rather than after. The record is both
+the approval token and the audit trail — there is no second store to query, and
+the evidence an approver needs (metric value, actions already run, plugins held,
+resolved targets) is on the object they are deciding about. `rp action approve`
+or `deny` records a verdict; the operator then runs or skips the held actions
+and folds the outcomes into the same record.
+
+Four things fall out of that, each deliberate:
+
+- **One gate per pipeline.** Two would mean a single trigger needs two separate
+  decisions, and the actions between them would run on an approval nobody gave
+  for them. The webhook rejects a second gate.
+- **Identity comes from admission, not from the object.** Kubernetes does not
+  persist who set a field, so if `decidedBy` were an ordinary field, anyone able
+  to record a decision could also record whose it was. A mutating webhook stamps
+  it from the authenticated request and overwrites what the client sent.
+  Decisions are write-once.
+- **Expiry denies.** An undecided gate lapses at `approvalTimeout` (default
+  30m) and its actions never run.
+- **Cooldown starts at the decision, not the trigger.** Waiting on a human is
+  not the quiet period that is supposed to follow an action. While a gate is
+  open the policy does not trigger again, so a metric that stays bad — which it
+  will, that is why someone is being asked — cannot queue a second gate behind
+  the first.
+
+**Consequences:** Gated pipelines get a review step without a separate approval
+service, and the audit answers "who approved this" as well as "what happened".
+The resumed pipeline is confined to the targets resolved at trigger time, so an
+approval cannot silently widen its own blast radius. Trade-offs: `ActionAudit`
+is no longer written once and never touched — the operator completes a gated
+record, which is why the webhook restricts what a client may change on it.
+Rollback also no longer spans a whole trigger: actions released by an approval
+cannot reverse actions audited as complete before the approver looked.
+
+Execution still runs as the operator's own service account. Resolving it from
+the approver's identity via impersonation — so RBAC *enforces* the approval
+rather than merely recording it — is the natural next step and deliberately not
+in this change: it needs the `impersonate` verb, which is worth introducing on
+its own.
+
+**Alternatives:** A separate `ApprovalRequest` CRD (two objects to keep in step,
+and the audit still would not carry the decision). Gating the whole pipeline
+rather than splitting it (simpler, but the Slack notification would wait behind
+the approval, so nobody would know a gate was open). Trusting a `decidedBy`
+field without a webhook (unforgeable only if nobody can write the object, which
+defeats the point).
+
+---
+
 (Add new ADRs below this line.)
