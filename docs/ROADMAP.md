@@ -221,10 +221,15 @@ Shipped since v0.1.0:
   `network.isolate` and `mesh.shift` action plugins, and the
   `reactive-policy-stack` umbrella chart (operator plus an optional, bundled
   kube-prometheus-stack).
+- **v0.3:** DB-backed audit history — a pluggable audit sink with a Postgres
+  implementation (async queue, embedded idempotent schema), wired into the
+  operator chart and backed by an optional CloudNativePG subchart in the
+  umbrella. Off by default; the `ActionAudit` CRD remains source of truth.
 
 On the roadmap, in rough order (not pre-committed):
 
-- A DB-backed history/event sink for analytics and long retention.
+- A human approval gate for high-blast-radius actions: an opt-in, per-action
+  pre-execution hold recorded on the `ActionAudit` itself.
 - A web UI over the audit history.
 - More action plugins and metric sources (Flux, Loki/Tempo, ...).
 - Optional AI/agent-assisted automation.
