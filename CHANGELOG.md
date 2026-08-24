@@ -23,7 +23,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   toolchain, and `continue-on-error: true` swallowed the failure, so the build
   stayed green while nothing was scanned. That is why the CVEs above surfaced
   through Artifact Hub's image scan rather than the pipeline. It now installs
-  `@latest` and is allowed to fail the build.
+  `@latest`, and its output is triaged by `.github/scripts/triage-govulncheck.py`
+  instead of being ignored wholesale: findings that are reachable from our code
+  and fixable by a dependency bump fail the build, while standard-library
+  findings — which track whichever Go patch release the runner image carries,
+  not anything in this repo — are reported and tolerated. That distinction is
+  what the blanket `continue-on-error` was really standing in for.
 - Dependabot now tracks indirect dependencies (`allow: dependency-type: all`).
   Every CVE this repo has had came in through one, and the default direct-only
   setting would never have proposed these bumps.
