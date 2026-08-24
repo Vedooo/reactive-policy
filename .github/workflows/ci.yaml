@@ -85,6 +85,15 @@ jobs:
       - name: yamllint
         run: yamllint -c .yamllint.yml .
 
+      # The docs claim these rules are promtool-validated, so validate them.
+      # A broken expr here is invisible until Prometheus refuses to load it.
+      - name: promtool check rules
+        run: |
+          docker run --rm --entrypoint promtool \
+            -v "${GITHUB_WORKSPACE}/observability:/o" \
+            prom/prometheus:v3.7.3 \
+            check rules /o/prometheus-rules.yaml
+
   shell:
     name: Shell
     runs-on: ubuntu-latest

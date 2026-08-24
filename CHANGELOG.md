@@ -6,6 +6,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Grafana dashboard gains an approval-gate row (pending gates, outcomes by
+  namespace, wait-time p50/p95, gates opened), and `prometheus-rules.yaml` gains
+  `ApprovalGatePending` and `ApprovalGateExpired`. The rules are now validated by
+  `promtool` in CI, which the docs already claimed but nothing enforced.
+
+### Fixed
+
+- Documentation that had drifted behind the last two releases: `ARCHITECTURE.md`
+  still described the mutating webhook as a future v0.2 idea and stated the
+  operator uses no external storage, which the v0.3 Postgres sink had already
+  made untrue. Its data-flow, webhook, state and metrics sections now match the
+  code, including where a gated pipeline resumes.
+- `docs/index.md` and the stack chart README now cover approval gates and how to
+  turn the webhooks on through the umbrella.
+
 ## [0.4.0] - 2026-08-24
 
 ### Added

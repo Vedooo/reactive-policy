@@ -57,6 +57,31 @@ groups:
             The operator is failing more than 0.1 metric-source queries per
             second over the last 5 minutes; check endpoint reachability and auth.
 
+      - alert: ApprovalGatePending
+        expr: sum by (namespace) (reactive_policy_approval_gates_pending) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: An action pipeline is waiting on a human decision
+          description: >-
+            A pipeline in namespace {{ $labels.namespace }} has been holding for
+            an approval for 10 minutes. It stopped mid-incident and will expire
+            closed — its held actions never run — once approvalTimeout elapses.
+            Review it with `rp action pending -n {{ $labels.namespace }}`.
+
+      - alert: ApprovalGateExpired
+        expr: sum by (namespace) (increase(reactive_policy_approval_decisions_total{outcome="expired"}[1h])) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: An approval gate expired without a decision
+          description: >-
+            A gated pipeline in namespace {{ $labels.namespace }} was denied by
+            expiry in the last hour: nobody answered, so the actions it held were
+            dropped. Either the gate is not visible to whoever should be
+            answering, or approvalTimeout is shorter than your response time.
+
       - alert: PluginValidationFailing
         expr: sum by (plugin) (increase(reactive_policy_plugin_validation_errors_total[15m])) > 0
         for: 15m

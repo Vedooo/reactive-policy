@@ -15,7 +15,11 @@ flowchart TD
     EV -->|no| OB
     EV -->|yes| RT[Resolve targets]
     RT --> ACT[Run action pipeline]
-    ACT --> AUD[(ActionAudit)]
+    ACT --> GATE{Action needs approval?}
+    GATE -->|no| AUD[(ActionAudit)]
+    GATE -->|yes| HOLD[(ActionAudit: Pending)]
+    HOLD -.->|rp action approve| AUD
+    HOLD -.->|denied or expired| SKIP[Held actions skipped]
     AUD -.->|reversible| RV[rp action revert]
 ```
 
@@ -26,10 +30,12 @@ flowchart TD
 - :material-rocket-launch: **[Quickstart](quickstart.md)** — zero to a policy that
   visibly annotates a Deployment on a local `kind` cluster, in ~5 minutes.
 - :material-download: **[Installation](installation.md)** — install with Helm,
-  configure metrics scraping, enable the optional webhook.
+  configure metrics scraping, enable the optional admission webhooks.
 - :material-lightbulb-on: **[Concepts](concepts.md)** — the reconcile loop and the
-  safety rails (sustained duration, cooldown, rate limit, reversibility, audit).
-- :material-console: **[CLI reference](cli.md)** — inspect and revert with `rp`.
+  safety rails (sustained duration, cooldown, rate limit, reversibility,
+  approval gates, audit).
+- :material-console: **[CLI reference](cli.md)** — inspect, approve, and revert
+  with `rp`.
 
 </div>
 
@@ -41,6 +47,12 @@ suspend a bad deploy, annotate the incident, notify the channel. That's **toil**
 declarative `ReactivePolicy` and runs it automatically, **safely**, and
 **auditably**. Alertmanager tells you something is wrong; reactive-policy *does
 something about it* — and lets you undo it.
+
+Not everything should fire unattended. Mark a destructive step
+`requiresApproval: true` and the pipeline splits there: the notification and the
+annotation still run during the incident, while the destructive action holds for
+`rp action approve`. The audit record is written *before* the gated action, so
+the thing you approve and the thing you read afterwards are the same object.
 
 !!! note "Project status"
     reactive-policy is in **beta** (`v0.x`) and actively developed — more plugins
