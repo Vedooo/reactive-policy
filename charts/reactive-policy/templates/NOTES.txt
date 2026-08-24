@@ -24,9 +24,22 @@ Metrics are exposed on port {{ .Values.metrics.port }} of service
 Set serviceMonitor.enabled=true to scrape them with the Prometheus Operator.
 {{- end }}
 {{- end }}
-{{- if not .Values.webhook.enabled }}
+{{- if .Values.webhook.enabled }}
 
-NOTE: the validating admission webhook is disabled (webhook.enabled=false).
-Invalid policies will be caught at reconcile time rather than rejected at
-admission. Enable the webhook with cert-manager for admission-time validation.
+Admission webhooks are enabled. Policies are validated at admission, and
+approval decisions are stamped with the approver's identity from the
+authenticated request.
+{{- if .Values.webhook.certManager.enabled }}
+The serving certificate is issued by cert-manager; if the operator pod is not
+ready, check that cert-manager is installed and the Certificate was issued:
+
+   kubectl -n {{ .Release.Namespace }} get certificate {{ include "reactive-policy.fullname" . }}-webhook
+{{- end }}
+{{- else }}
+
+NOTE: the admission webhooks are disabled (webhook.enabled=false). Invalid
+policies are caught at reconcile time rather than rejected at admission, and
+approval gates hold the pipeline but cannot prove who approved: the approver's
+identity is taken from the object instead of the authenticated request, and
+decisions are not write-once. Enable them with webhook.enabled=true.
 {{- end }}

@@ -44,6 +44,9 @@ const (
 	maxPollInterval = 5 * time.Minute
 	minDuration     = 30 * time.Second
 	maxDuration     = 24 * time.Hour
+
+	minApprovalTimeout = time.Minute
+	maxApprovalTimeout = 24 * time.Hour
 )
 
 var reactivePolicyGK = schema.GroupKind{Group: "reactive-policy.io", Kind: "ReactivePolicy"}
@@ -123,14 +126,31 @@ func validateTimings(path *field.Path, s reactivepolicyiov1alpha1.ReactivePolicy
 		errs = append(errs, field.Invalid(path.Child("cooldown"), c.String(),
 			fmt.Sprintf("must be between %s and %s", minCooldown, maxCooldown)))
 	}
+	if t := s.ApprovalTimeout.Duration; t != 0 && (t < minApprovalTimeout || t > maxApprovalTimeout) {
+		errs = append(errs, field.Invalid(path.Child("approvalTimeout"), t.String(),
+			fmt.Sprintf("must be between %s and %s", minApprovalTimeout, maxApprovalTimeout)))
+	}
 	return errs
 }
 
 func (v *ReactivePolicyCustomValidator) validateActions(path *field.Path, s reactivepolicyiov1alpha1.ReactivePolicySpec) field.ErrorList {
 	errs := make(field.ErrorList, 0, len(s.Actions))
+	gated := -1
 	for i := range s.Actions {
 		act := s.Actions[i]
 		p := path.Index(i)
+
+		// One gate per pipeline. A second one would mean a single trigger asks
+		// for two separate decisions, and the actions between them would run on
+		// the strength of an approval nobody gave for them (ADR-011).
+		if act.RequiresApproval {
+			if gated >= 0 {
+				errs = append(errs, field.Forbidden(p.Child("requiresApproval"),
+					fmt.Sprintf("a pipeline may hold for approval once; action %d already does", gated)))
+			} else {
+				gated = i
+			}
+		}
 
 		plugin := v.registry.Lookup(act.Plugin)
 		if plugin == nil {

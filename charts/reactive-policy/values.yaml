@@ -108,11 +108,34 @@ prometheusRule:
   labels: {}
 
 webhook:
-  # -- Enable the validating admission webhook. When false (the default) the
-  # operator runs with ENABLE_WEBHOOKS=false and no ValidatingWebhookConfiguration
-  # is created, so the chart installs cleanly without cert-manager. Enabling it
-  # requires TLS certs (cert-manager is recommended); see the chart README.
+  # -- Enable the admission webhooks. When false (the default) the operator runs
+  # with ENABLE_WEBHOOKS=false and no webhook configurations are created, so the
+  # chart installs cleanly without cert-manager. Enabling it serves two
+  # webhooks: policy validation, and the approval handler that stamps an
+  # approver's identity from the authenticated request. Approval gates work
+  # without it, but their identity and write-once guarantees do not.
   enabled: false
+  # -- Port the webhook server listens on inside the pod.
+  port: 9443
+  # -- failurePolicy for both webhook configurations. `Fail` is the safe choice:
+  # an unreachable webhook rejects the write rather than admitting an unchecked
+  # policy or an unstamped approval. Use `Ignore` only if you would rather lose
+  # the guarantees than block writes during an operator outage.
+  failurePolicy: Fail
+  certManager:
+    # -- Issue the serving certificate with cert-manager. Requires cert-manager
+    # in the cluster; the chart creates a self-signed Issuer and a Certificate,
+    # and annotates the webhook configurations so the CA bundle is injected.
+    enabled: true
+    # -- Use an existing Issuer or ClusterIssuer instead of the self-signed one
+    # the chart creates, e.g. {name: my-ca, kind: ClusterIssuer}.
+    issuerRef: {}
+  # -- Bring your own certificate instead of cert-manager. The Secret must hold
+  # tls.crt and tls.key, and caBundle must be the base64-encoded CA that signed
+  # it. Set certManager.enabled=false when using this.
+  existingSecret: ""
+  # -- Base64-encoded CA bundle for existingSecret.
+  caBundle: ""
 
 audit:
   # -- Audit sink backend. One of: none, postgres. The default no-op keeps the

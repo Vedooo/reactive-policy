@@ -48,11 +48,34 @@ func (e *Executor) Lookup(name string) Action {
 // action whose onFailure is "stop" or "rollback". Results are returned even on
 // abort so the caller can write a complete audit trail.
 func (e *Executor) Run(ctx context.Context, policy *v1alpha1.ReactivePolicy, target Target, metricValue string) ([]Result, error) {
+	return e.RunRange(ctx, policy, target, metricValue, 0, len(policy.Spec.Actions))
+}
+
+// RunRange executes actions [from, to) of the pipeline against target. An
+// approval gate splits a pipeline in two — the actions that run at trigger time
+// and the ones held until a decision arrives — and each half is one RunRange
+// call (ADR-011).
+//
+// Rollback is confined to the half that ran. Actions released by an approval
+// cannot reverse actions from before the gate: those were audited as complete
+// long before the approver looked at the record, and undoing them silently on a
+// later failure would contradict the trail the approver read.
+func (e *Executor) RunRange(ctx context.Context, policy *v1alpha1.ReactivePolicy, target Target, metricValue string, from, to int) ([]Result, error) {
+	if from < 0 {
+		from = 0
+	}
+	if to > len(policy.Spec.Actions) {
+		to = len(policy.Spec.Actions)
+	}
+	if from >= to {
+		return nil, nil
+	}
+
 	ts := time.Now()
 	tmpl := templateData(policy, target, metricValue, ts)
 
-	results := make([]Result, 0, len(policy.Spec.Actions))
-	for i := range policy.Spec.Actions {
+	results := make([]Result, 0, to-from)
+	for i := from; i < to; i++ {
 		act := policy.Spec.Actions[i]
 		res, execErr := e.runOne(ctx, act, target, policy, metricValue, ts, tmpl)
 		results = append(results, res)
@@ -75,6 +98,19 @@ func (e *Executor) Run(ctx context.Context, policy *v1alpha1.ReactivePolicy, tar
 		}
 	}
 	return results, nil
+}
+
+// GateIndex returns the position of the first action that holds for approval,
+// or -1 when the pipeline has no gate. Only the first gate is honoured: a
+// second one in the same pipeline would mean a single trigger could demand two
+// separate decisions, which the CRD spec rejects at admission.
+func GateIndex(policy *v1alpha1.ReactivePolicy) int {
+	for i := range policy.Spec.Actions {
+		if policy.Spec.Actions[i].RequiresApproval {
+			return i
+		}
+	}
+	return -1
 }
 
 // runOne executes a single action, records its metrics, and normalizes its

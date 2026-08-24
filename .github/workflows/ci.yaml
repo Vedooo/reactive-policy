@@ -46,6 +46,13 @@ jobs:
         with:
           version: v2.12.2
 
+      # Generated output must be committed. This catches the case that bit us
+      # once already: the chart ships plain copies of the CRDs under crds/, and a
+      # stale copy silently prunes new API fields on a chart install.
+      - name: Verify generated manifests are up to date
+        if: steps.detect.outputs.present == 'true'
+        run: make verify-manifests
+
       # Dependency/stdlib vulnerability scan. Non-blocking: stdlib findings track
       # the Go toolchain patch level and should inform, not gate, the pipeline.
       - name: govulncheck

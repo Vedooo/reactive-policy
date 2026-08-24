@@ -68,7 +68,7 @@ const (
 
 // PolicyState is a coarse, human-readable summary of where a policy is in its
 // lifecycle.
-// +kubebuilder:validation:Enum=Watching;Triggering;Cooldown;RateLimited;Invalid
+// +kubebuilder:validation:Enum=Watching;Triggering;AwaitingApproval;Cooldown;RateLimited;Invalid
 type PolicyState string
 
 const (
@@ -76,6 +76,10 @@ const (
 	StateWatching PolicyState = "Watching"
 	// StateTriggering means the action pipeline is currently executing.
 	StateTriggering PolicyState = "Triggering"
+	// StateAwaitingApproval means a triggered pipeline stopped at a gated action
+	// and is holding for a human decision. The policy does not trigger again
+	// while a gate is open (see ADR-011).
+	StateAwaitingApproval PolicyState = "AwaitingApproval"
 	// StateCooldown means the policy recently triggered and is cooling down.
 	StateCooldown PolicyState = "Cooldown"
 	// StateRateLimited means the policy hit its maxTriggersPerHour cap.
@@ -164,6 +168,16 @@ type Action struct {
 	// +kubebuilder:default=stop
 	// +optional
 	OnFailure FailurePolicy `json:"onFailure,omitempty"`
+
+	// RequiresApproval holds the pipeline immediately before this action until a
+	// human decides. Actions ahead of the gate still run at trigger time, so a
+	// pipeline can notify and annotate straight away and hold only its
+	// destructive step. This action and every action after it wait for
+	// `rp action approve`, and an undecided gate is denied once the policy's
+	// approvalTimeout elapses (see ADR-011).
+	// +kubebuilder:default=false
+	// +optional
+	RequiresApproval bool `json:"requiresApproval,omitempty"`
 }
 
 // AuditSpec configures retention of ActionAudit records produced by a policy.
@@ -209,6 +223,15 @@ type ReactivePolicySpec struct {
 	// +optional
 	AllowIrreversible bool `json:"allowIrreversible,omitempty"`
 
+	// ApprovalTimeout is how long a gated pipeline waits for a human decision
+	// before the gate is denied. It is fail-closed by design: an expired gate
+	// never runs the actions held behind it. Only meaningful when some action
+	// sets requiresApproval. Bounds (min 1m, max 24h) are enforced by the
+	// validating webhook.
+	// +kubebuilder:default="30m"
+	// +optional
+	ApprovalTimeout metav1.Duration `json:"approvalTimeout,omitempty"`
+
 	// Audit configures ActionAudit record retention.
 	// +optional
 	Audit *AuditSpec `json:"audit,omitempty"`
@@ -236,6 +259,13 @@ type ReactivePolicyStatus struct {
 	// CurrentMetricValue is the most recently observed metric value.
 	// +optional
 	CurrentMetricValue string `json:"currentMetricValue,omitempty"`
+
+	// PendingGateRef is the name of the ActionAudit holding an open approval
+	// gate for this policy. While it is set the policy will not trigger again,
+	// so a metric that stays bad cannot queue a second gate behind the first.
+	// The controller clears it once the gate is decided or expires.
+	// +optional
+	PendingGateRef string `json:"pendingGateRef,omitempty"`
 
 	// Conditions is the standard set of condition objects for the policy.
 	// +listType=map

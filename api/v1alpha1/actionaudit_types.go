@@ -26,6 +26,83 @@ import (
 // and the CLI uses it to filter history.
 const LabelPolicy = "reactive-policy.io/policy"
 
+// ApprovalDecision is the verdict a human records on an open approval gate.
+// +kubebuilder:validation:Enum=Approved;Denied
+type ApprovalDecision string
+
+const (
+	// DecisionApproved releases the actions held behind the gate.
+	DecisionApproved ApprovalDecision = "Approved"
+	// DecisionDenied abandons them; they are recorded as Skipped.
+	DecisionDenied ApprovalDecision = "Denied"
+)
+
+// ApprovalPhase is where a gated record sits in its approval lifecycle. It is
+// empty on records that ran straight through without gating.
+// +kubebuilder:validation:Enum=Pending;Approved;Denied;Expired
+type ApprovalPhase string
+
+const (
+	// PhasePending means the gate is open and waiting for a decision.
+	PhasePending ApprovalPhase = "Pending"
+	// PhaseApproved means the held actions were released and have run.
+	PhaseApproved ApprovalPhase = "Approved"
+	// PhaseDenied means a human refused the gate.
+	PhaseDenied ApprovalPhase = "Denied"
+	// PhaseExpired means no decision arrived before approvalTimeout elapsed.
+	// Expiry denies: the held actions never run (ADR-011).
+	PhaseExpired ApprovalPhase = "Expired"
+)
+
+// ApprovalGate is the pre-execution hold written when a pipeline stops at an
+// action with requiresApproval. The record is created before the gated action
+// runs rather than after, so the approval token and the audit trail are the
+// same object (ADR-011).
+type ApprovalGate struct {
+	// ActionIndex is the zero-based position of the gated action in the policy
+	// pipeline. Actions before it already ran and are recorded in spec.actions;
+	// this one and every action after it are held.
+	ActionIndex int32 `json:"actionIndex"`
+
+	// PendingPlugins names the plugins waiting behind the gate, in pipeline
+	// order, so an approver can see what they are releasing without fetching
+	// the policy.
+	// +optional
+	PendingPlugins []string `json:"pendingPlugins,omitempty"`
+
+	// Targets are the resources the held actions will operate on, resolved at
+	// trigger time. Recording them is what makes the gate reviewable: the
+	// approver sees the blast radius, and the resumed pipeline is confined to
+	// the same set even if the selector would match more by then.
+	// +optional
+	Targets []AuditTarget `json:"targets,omitempty"`
+
+	// ExpiresAt is when an undecided gate is denied.
+	ExpiresAt metav1.Time `json:"expiresAt"`
+
+	// Decision is the human verdict, set by `rp action approve|deny`. Empty
+	// while the gate is still waiting. It is write-once: the validating webhook
+	// rejects any attempt to change or clear a recorded decision.
+	// +optional
+	Decision ApprovalDecision `json:"decision,omitempty"`
+
+	// DecidedBy is the identity that recorded the decision. The mutating
+	// webhook stamps it from the admission request's user info, overwriting
+	// whatever the client sent, so it cannot be forged by writing the field.
+	// +optional
+	DecidedBy string `json:"decidedBy,omitempty"`
+
+	// DecidedAt is when the decision was admitted, stamped by the same webhook
+	// that sets DecidedBy.
+	// +optional
+	DecidedAt *metav1.Time `json:"decidedAt,omitempty"`
+
+	// Reason is the optional free-text justification supplied with the
+	// decision.
+	// +optional
+	Reason string `json:"reason,omitempty"`
+}
+
 // AuditTarget identifies the Kubernetes resource an audited action operated on.
 type AuditTarget struct {
 	// APIVersion is the group/version of the target, e.g. "argoproj.io/v1alpha1".
@@ -107,6 +184,12 @@ type ActionAuditSpec struct {
 	// operator records the outcome in status and does not act twice.
 	// +optional
 	RevertRequested bool `json:"revertRequested,omitempty"`
+
+	// Gate is the approval hold this record is carrying, present only when the
+	// pipeline stopped at an action with requiresApproval. Nil on records that
+	// ran straight through.
+	// +optional
+	Gate *ApprovalGate `json:"gate,omitempty"`
 }
 
 // RevertResult is the per-action outcome of a reversal attempt.
@@ -141,6 +224,18 @@ type ActionAuditStatus struct {
 	// +optional
 	RevertResults []RevertResult `json:"revertResults,omitempty"`
 
+	// ApprovalPhase tracks a gated record from Pending to its terminal phase.
+	// Empty on records that never gated.
+	// +optional
+	ApprovalPhase ApprovalPhase `json:"approvalPhase,omitempty"`
+
+	// ResumedAt is when the operator ran the actions held behind an approved
+	// gate. It is the point the policy's cooldown starts from, so time spent
+	// waiting for a decision does not consume the quiet period that is meant to
+	// follow the action.
+	// +optional
+	ResumedAt *metav1.Time `json:"resumedAt,omitempty"`
+
 	// Conditions is the standard set of condition objects for the record.
 	// +listType=map
 	// +listMapKey=type
@@ -153,6 +248,7 @@ type ActionAuditStatus struct {
 // +kubebuilder:resource:shortName=aa;audit
 // +kubebuilder:printcolumn:name="Policy",type=string,JSONPath=`.spec.policyRef`
 // +kubebuilder:printcolumn:name="Triggered",type=date,JSONPath=`.spec.triggeredAt`
+// +kubebuilder:printcolumn:name="Approval",type=string,JSONPath=`.status.approvalPhase`
 // +kubebuilder:printcolumn:name="Reverted",type=boolean,JSONPath=`.status.reverted`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 

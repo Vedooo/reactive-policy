@@ -1,0 +1,77 @@
+{{- if .Values.webhook.enabled }}
+{{- $ca := .Values.webhook.caBundle }}
+{{- $svc := printf "%s-webhook" (include "reactive-policy.fullname" .) }}
+{{- $annotations := dict }}
+{{- if .Values.webhook.certManager.enabled }}
+{{- $annotations = dict "cert-manager.io/inject-ca-from" (printf "%s/%s-webhook" .Release.Namespace (include "reactive-policy.fullname" .)) }}
+{{- else if not $ca }}
+{{- fail "webhook.enabled requires either webhook.certManager.enabled=true or webhook.caBundle set alongside webhook.existingSecret" }}
+{{- end }}
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: {{ include "reactive-policy.webhookName" . }}
+  labels:
+    {{- include "reactive-policy.labels" . | nindent 4 }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+webhooks:
+  # Rejects invalid policies at admission: unknown plugins, bad plugin params,
+  # irreversible actions without the opt-in, out-of-range timings, and more than
+  # one approval gate in a pipeline.
+  - name: vreactivepolicy-v1alpha1.kb.io
+    admissionReviewVersions: ["v1"]
+    sideEffects: None
+    failurePolicy: {{ .Values.webhook.failurePolicy }}
+    clientConfig:
+      {{- with $ca }}
+      caBundle: {{ . }}
+      {{- end }}
+      service:
+        name: {{ $svc }}
+        namespace: {{ .Release.Namespace }}
+        path: /validate-reactive-policy-io-v1alpha1-reactivepolicy
+        port: 443
+    rules:
+      - apiGroups: ["reactive-policy.io"]
+        apiVersions: ["v1alpha1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["reactivepolicies"]
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: {{ include "reactive-policy.webhookName" . }}
+  labels:
+    {{- include "reactive-policy.labels" . | nindent 4 }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+webhooks:
+  # Stamps the approver's identity onto an approval decision from the
+  # authenticated admission request, because Kubernetes does not record who set
+  # a field. Also makes decisions write-once and refuses a verdict on a gate
+  # that has expired or already closed. Without this the gate still holds the
+  # pipeline, but the record cannot prove who approved (ADR-011).
+  - name: mactionaudit-v1alpha1.kb.io
+    admissionReviewVersions: ["v1"]
+    sideEffects: None
+    failurePolicy: {{ .Values.webhook.failurePolicy }}
+    clientConfig:
+      {{- with $ca }}
+      caBundle: {{ . }}
+      {{- end }}
+      service:
+        name: {{ $svc }}
+        namespace: {{ .Release.Namespace }}
+        path: /mutate-reactive-policy-io-v1alpha1-actionaudit
+        port: 443
+    rules:
+      - apiGroups: ["reactive-policy.io"]
+        apiVersions: ["v1alpha1"]
+        operations: ["UPDATE"]
+        resources: ["actionaudits"]
+{{- end }}

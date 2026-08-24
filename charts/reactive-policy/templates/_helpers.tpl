@@ -68,3 +68,24 @@ Container image reference, defaulting the tag to the chart appVersion.
 {{- $tag := default .Chart.AppVersion .Values.image.tag -}}
 {{- printf "%s:%s" .Values.image.repository $tag -}}
 {{- end }}
+
+{{/*
+Name of the Secret holding the webhook serving certificate. cert-manager writes
+it from the Certificate; a bring-your-own setup names an existing one.
+*/}}
+{{- define "reactive-policy.webhookCertSecret" -}}
+{{- if .Values.webhook.existingSecret -}}
+{{- .Values.webhook.existingSecret -}}
+{{- else -}}
+{{- printf "%s-webhook-cert" (include "reactive-policy.fullname" .) -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+Base name for the webhook configurations. These are cluster-scoped, so the
+release namespace is folded in to keep two releases in different namespaces from
+colliding on the same object.
+*/}}
+{{- define "reactive-policy.webhookName" -}}
+{{- printf "%s-%s" (include "reactive-policy.fullname" .) .Release.Namespace | trunc 63 | trimSuffix "-" -}}
+{{- end }}

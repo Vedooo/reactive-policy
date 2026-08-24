@@ -1,0 +1,33 @@
+{{- if and .Values.webhook.enabled .Values.webhook.certManager.enabled }}
+{{- if not .Values.webhook.certManager.issuerRef }}
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ include "reactive-policy.fullname" . }}-webhook
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "reactive-policy.labels" . | nindent 4 }}
+spec:
+  selfSigned: {}
+---
+{{- end }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "reactive-policy.fullname" . }}-webhook
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "reactive-policy.labels" . | nindent 4 }}
+spec:
+  secretName: {{ include "reactive-policy.webhookCertSecret" . }}
+  dnsNames:
+    - {{ include "reactive-policy.fullname" . }}-webhook.{{ .Release.Namespace }}.svc
+    - {{ include "reactive-policy.fullname" . }}-webhook.{{ .Release.Namespace }}.svc.cluster.local
+  issuerRef:
+    {{- if .Values.webhook.certManager.issuerRef }}
+    {{- toYaml .Values.webhook.certManager.issuerRef | nindent 4 }}
+    {{- else }}
+    name: {{ include "reactive-policy.fullname" . }}-webhook
+    kind: Issuer
+    {{- end }}
+{{- end }}

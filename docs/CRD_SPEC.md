@@ -122,6 +122,7 @@ An ordered list of plugin invocations. They run sequentially. At least 1 action.
 | `actions[].plugin` | string | yes | Plugin name. Must match a registered plugin. |
 | `actions[].params` | map[string]JSON | no | Plugin-specific parameters. |
 | `actions[].onFailure` | enum | no | `continue`, `stop`, or `rollback`. Default `stop`. |
+| `actions[].requiresApproval` | bool | no | Hold the pipeline before this action until a human decides. Default `false`. At most one action per pipeline may set it. |
 
 ### 3.4 `cooldown` (optional)
 
@@ -138,7 +139,13 @@ window. Default `5`. Min `1`, max `60`. Prevents runaway policies.
 Boolean. Default `false`. If `false`, the webhook rejects any policy whose
 `actions` includes a plugin whose `IsReversible()` returns false.
 
-### 3.7 `audit` (optional)
+### 3.7 `approvalTimeout` (optional)
+
+How long a gated pipeline waits for a decision before the gate is denied.
+Default `30m`. Min `1m`, max `24h`. Only meaningful when some action sets
+`requiresApproval`. Expiry is fail-closed: the held actions never run.
+
+### 3.8 `audit` (optional)
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -150,11 +157,12 @@ Written by the controller. Users should not edit.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `status.state` | enum | One of `Watching`, `Triggering`, `Cooldown`, `RateLimited`, `Invalid`. |
+| `status.state` | enum | One of `Watching`, `Triggering`, `AwaitingApproval`, `Cooldown`, `RateLimited`, `Invalid`. |
 | `status.lastEvaluatedAt` | Timestamp | Time of most recent metric evaluation. |
 | `status.lastTriggeredAt` | Timestamp | Time of most recent successful trigger. |
 | `status.triggerCount` | int | Total triggers since policy creation. |
 | `status.currentMetricValue` | string | Most recently observed value. |
+| `status.pendingGateRef` | string | Name of the `ActionAudit` holding an open approval gate. While set, the policy does not trigger again. |
 | `status.conditions` | []Condition | Standard K8s conditions array. |
 
 ### 4.1 Standard conditions
@@ -166,6 +174,7 @@ Written by the controller. Users should not edit.
 | `MetricSourceReachable` | Last metric query succeeded. |
 | `ThresholdCrossed` | Threshold currently crossed (transient). |
 | `RateLimited` | Hit `maxTriggersPerHour` cap. |
+| `AwaitingApproval` | A triggered pipeline is holding for a human decision. |
 
 ## 5. Validation behavior
 
@@ -176,6 +185,14 @@ The ValidatingWebhook performs:
 3. Plugin parameter validation: each plugin's `Validate()` is called.
 4. Sanity floors: cooldown >= 30s, pollInterval >= 10s, etc.
 5. `allowIrreversible` enforcement: rejects irreversible actions unless opted-in.
+6. Approval gates: at most one action per pipeline may set `requiresApproval`,
+   and `approvalTimeout` must be between `1m` and `24h`.
+
+A second admission handler covers decisions on `ActionAudit` records: it stamps
+the approver's identity from the authenticated request (a client cannot name its
+own approver), makes a decision write-once, and refuses a verdict on a gate that
+has already lapsed or closed. Without webhooks enabled the gate still holds the
+pipeline, but none of those guarantees apply — see ADR-011.
 
 ## 6. Print columns (for `kubectl get`)
 
@@ -189,7 +206,6 @@ db-pool-saturation         Cooldown    2m ago           3       1d
 
 For reference only. Do not implement.
 
-- `aiConsult` — LLM-based decision gate (v0.3+)
 - `multiSource` — query multiple metric sources and combine (v0.4+)
 - `expression` — full CEL expression for threshold (v0.2+)
 - `sourceRef` — reference a reusable `MetricSource` CR (v0.2+)

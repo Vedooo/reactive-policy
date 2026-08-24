@@ -214,6 +214,18 @@ func main() {
 			setupLog.Error(err, "unable to create webhook", "webhook", "ReactivePolicy")
 			os.Exit(1)
 		}
+		// Approval decisions are only trustworthy with this registered: it is
+		// what stamps the approver's identity from the authenticated request
+		// rather than believing the object (ADR-011).
+		if err = webhookreactivepolicyiov1alpha1.SetupActionAuditWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "ActionAudit")
+			os.Exit(1)
+		}
+	} else {
+		setupLog.Info("WARNING: webhooks are disabled; approval gates still hold the pipeline, "+
+			"but the approver's identity is taken from the object instead of the authenticated request "+
+			"and decisions are not write-once. Enable webhooks before relying on a gate as an audit control",
+			"flag", "ENABLE_WEBHOOKS=false")
 	}
 	// +kubebuilder:scaffold:builder
 

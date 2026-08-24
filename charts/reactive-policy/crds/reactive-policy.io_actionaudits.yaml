@@ -24,6 +24,9 @@ spec:
     - jsonPath: .spec.triggeredAt
       name: Triggered
       type: date
+    - jsonPath: .status.approvalPhase
+      name: Approval
+      type: string
     - jsonPath: .status.reverted
       name: Reverted
       type: boolean
@@ -121,6 +124,86 @@ spec:
                   - status
                   type: object
                 type: array
+              gate:
+                description: |-
+                  Gate is the approval hold this record is carrying, present only when the
+                  pipeline stopped at an action with requiresApproval. Nil on records that
+                  ran straight through.
+                properties:
+                  actionIndex:
+                    description: |-
+                      ActionIndex is the zero-based position of the gated action in the policy
+                      pipeline. Actions before it already ran and are recorded in spec.actions;
+                      this one and every action after it are held.
+                    format: int32
+                    type: integer
+                  decidedAt:
+                    description: |-
+                      DecidedAt is when the decision was admitted, stamped by the same webhook
+                      that sets DecidedBy.
+                    format: date-time
+                    type: string
+                  decidedBy:
+                    description: |-
+                      DecidedBy is the identity that recorded the decision. The mutating
+                      webhook stamps it from the admission request's user info, overwriting
+                      whatever the client sent, so it cannot be forged by writing the field.
+                    type: string
+                  decision:
+                    description: |-
+                      Decision is the human verdict, set by `rp action approve|deny`. Empty
+                      while the gate is still waiting. It is write-once: the validating webhook
+                      rejects any attempt to change or clear a recorded decision.
+                    enum:
+                    - Approved
+                    - Denied
+                    type: string
+                  expiresAt:
+                    description: ExpiresAt is when an undecided gate is denied.
+                    format: date-time
+                    type: string
+                  pendingPlugins:
+                    description: |-
+                      PendingPlugins names the plugins waiting behind the gate, in pipeline
+                      order, so an approver can see what they are releasing without fetching
+                      the policy.
+                    items:
+                      type: string
+                    type: array
+                  reason:
+                    description: |-
+                      Reason is the optional free-text justification supplied with the
+                      decision.
+                    type: string
+                  targets:
+                    description: |-
+                      Targets are the resources the held actions will operate on, resolved at
+                      trigger time. Recording them is what makes the gate reviewable: the
+                      approver sees the blast radius, and the resumed pipeline is confined to
+                      the same set even if the selector would match more by then.
+                    items:
+                      description: AuditTarget identifies the Kubernetes resource
+                        an audited action operated on.
+                      properties:
+                        apiVersion:
+                          description: APIVersion is the group/version of the target,
+                            e.g. "argoproj.io/v1alpha1".
+                          type: string
+                        kind:
+                          description: Kind is the target resource kind.
+                          type: string
+                        name:
+                          description: Name is the target resource name.
+                          type: string
+                        namespace:
+                          description: Namespace is the target resource namespace.
+                          type: string
+                      type: object
+                    type: array
+                required:
+                - actionIndex
+                - expiresAt
+                type: object
               metricValue:
                 description: MetricValue is the observed value that crossed the threshold.
                 type: string
@@ -155,6 +238,16 @@ spec:
               ActionAuditStatus records the result of a revert request. It is empty until a
               revert is requested and processed by the operator.
             properties:
+              approvalPhase:
+                description: |-
+                  ApprovalPhase tracks a gated record from Pending to its terminal phase.
+                  Empty on records that never gated.
+                enum:
+                - Pending
+                - Approved
+                - Denied
+                - Expired
+                type: string
               conditions:
                 description: Conditions is the standard set of condition objects for
                   the record.
@@ -216,6 +309,14 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              resumedAt:
+                description: |-
+                  ResumedAt is when the operator ran the actions held behind an approved
+                  gate. It is the point the policy's cooldown starts from, so time spent
+                  waiting for a decision does not consume the quiet period that is meant to
+                  follow the action.
+                format: date-time
+                type: string
               revertResults:
                 description: RevertResults is the per-action outcome of the reversal.
                 items:

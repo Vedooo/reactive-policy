@@ -6,6 +6,73 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Human approval gates.** An action can set `requiresApproval: true`, which
+  holds the pipeline immediately before it runs. Actions ahead of the gate still
+  fire at trigger time, so a policy can notify and annotate during the incident
+  and hold only its destructive step. The operator writes the `ActionAudit`
+  *before* the gated action rather than after, so the approval token and the
+  audit trail are one object: the record carries the metric value, what already
+  ran, which plugins are held, and the exact resources they would touch. See
+  ADR-011.
+  - `rp action pending` lists gates waiting on a human with the evidence to
+    judge them; `rp action approve` / `rp action deny` record a verdict, with an
+    optional `--reason`.
+  - `spec.approvalTimeout` (default `30m`, min `1m`, max `24h`) bounds the wait.
+    Expiry is fail-closed — an unanswered gate never runs what it held.
+  - The approver's identity is stamped by a new admission webhook from the
+    authenticated request rather than read from the object, so a client cannot
+    name its own approver. Decisions are write-once, and a lapsed or already
+    closed gate admits no verdict. With `ENABLE_WEBHOOKS=false` the gate still
+    holds the pipeline but those guarantees do not apply; the operator logs a
+    warning at startup.
+  - While a gate is open the policy does not trigger again — the metric is still
+    bad, so a second identical request would otherwise queue behind the first —
+    and the cooldown starts from the decision rather than the trigger, so time
+    spent waiting on a human does not consume the quiet period that is meant to
+    follow the action.
+  - The resumed pipeline is confined to the targets resolved at trigger time. A
+    resource that starts matching the selector while the gate is open is not
+    touched, because the approver never saw it.
+  - New policy state `AwaitingApproval` and status field `pendingGateRef`; new
+    `ActionAudit` fields `spec.gate`, `status.approvalPhase`, and
+    `status.resumedAt`, plus an `Approval` print column.
+  - Four new metrics: `reactive_policy_approval_gates_opened_total`,
+    `reactive_policy_approval_decisions_total{outcome}`,
+    `reactive_policy_approval_wait_seconds`, and
+    `reactive_policy_approval_gates_pending`.
+- `Executor.RunRange` executes a slice of a pipeline, which is how a gate splits
+  one. Rollback stays inside the half that ran: actions released by an approval
+  cannot reverse actions audited as complete before the approver looked.
+- **The chart can now actually install the webhooks.** `webhook.enabled=true`
+  previously only flipped `ENABLE_WEBHOOKS` on the operator — no webhook
+  configurations were ever created, so nothing was intercepted. The chart now
+  renders a webhook `Service`, both `ValidatingWebhookConfiguration` and
+  `MutatingWebhookConfiguration`, and mounts a serving certificate. Three cert
+  paths are supported: a self-signed cert-manager `Issuer` and `Certificate`
+  created by the chart (default), your own issuer via
+  `webhook.certManager.issuerRef`, or a bring-your-own Secret via
+  `webhook.existingSecret` + `webhook.caBundle`. `webhook.failurePolicy`
+  defaults to `Fail`. Still off by default, so a plain install needs no
+  cert-manager.
+
+### Changed
+
+- The validating webhook rejects a pipeline with more than one gated action — a
+  single trigger cannot need two separate decisions — and enforces the
+  `approvalTimeout` bounds.
+- Both charts move to `0.4.0`.
+
+### Fixed
+
+- The Helm chart's bundled CRDs were a hand-copied snapshot of the generated
+  ones and had drifted. Helm installs `crds/` verbatim, so any API field added
+  since the last manual copy was silently pruned on a chart install. `make
+  manifests` now refreshes the chart copies as part of generation, and CI fails
+  if generated output is not committed (`make verify-manifests`), so the two
+  cannot diverge again.
+
 ## [0.3.1] - 2026-08-21
 
 ### Changed

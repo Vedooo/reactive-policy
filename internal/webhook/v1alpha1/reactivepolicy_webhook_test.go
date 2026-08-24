@@ -120,3 +120,53 @@ func TestValidateRejectsSanityFloorViolations(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateRejectsASecondApprovalGate(t *testing.T) {
+	v := &ReactivePolicyCustomValidator{registry: acttest.NewFakeRegistry(
+		acttest.NewNop("a").SetReversible(true),
+		acttest.NewNop("b").SetReversible(true),
+	)}
+
+	policy := validPolicy(
+		apiv1alpha1.Action{Plugin: "a", RequiresApproval: true},
+		apiv1alpha1.Action{Plugin: "b", RequiresApproval: true},
+	)
+	if _, err := v.ValidateCreate(context.Background(), policy); err == nil {
+		t.Fatal("a pipeline with two gates should be rejected; one trigger cannot need two decisions")
+	}
+
+	policy.Spec.Actions[1].RequiresApproval = false
+	if _, err := v.ValidateCreate(context.Background(), policy); err != nil {
+		t.Fatalf("a single gate should be accepted, got: %v", err)
+	}
+}
+
+func TestValidateApprovalTimeoutBounds(t *testing.T) {
+	v := &ReactivePolicyCustomValidator{registry: acttest.NewFakeRegistry(
+		acttest.NewNop("a").SetReversible(true),
+	)}
+
+	cases := map[string]struct {
+		timeout time.Duration
+		wantErr bool
+	}{
+		"unset falls back to the default": {0, false},
+		"at the floor":                    {time.Minute, false},
+		"below the floor":                 {30 * time.Second, true},
+		"at the ceiling":                  {24 * time.Hour, false},
+		"above the ceiling":               {48 * time.Hour, true},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			policy := validPolicy(apiv1alpha1.Action{Plugin: "a", RequiresApproval: true})
+			policy.Spec.ApprovalTimeout = metav1.Duration{Duration: tc.timeout}
+			_, err := v.ValidateCreate(context.Background(), policy)
+			if tc.wantErr && err == nil {
+				t.Errorf("approvalTimeout %s should be rejected", tc.timeout)
+			}
+			if !tc.wantErr && err != nil {
+				t.Errorf("approvalTimeout %s should be accepted, got: %v", tc.timeout, err)
+			}
+		})
+	}
+}
