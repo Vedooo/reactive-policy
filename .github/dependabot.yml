@@ -6,6 +6,11 @@ updates:
       interval: "weekly"
       day: "monday"
     open-pull-requests-limit: 5
+    # Indirect dependencies are in scope: every CVE this repo has had came in
+    # through one (grpc, otel and cel-go all arrive via k8s.io/apiserver), and
+    # the default direct-only setting never proposes those bumps.
+    allow:
+      - dependency-type: "all"
     labels:
       - "dependencies"
       - "go"

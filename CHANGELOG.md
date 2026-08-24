@@ -6,6 +6,28 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+
+- Bump three transitive dependencies flagged in the published image's
+  vulnerability scan: `google.golang.org/grpc` 1.79.3 → 1.82.1 (GO-2026-6061,
+  xDS RBAC and HTTP/2 transport), `go.opentelemetry.io/otel/sdk` 1.40.0 → 1.43.0
+  (CVE-2026-39883), and `github.com/google/cel-go` 0.26.0 → 0.29.0. All three
+  arrive via `k8s.io/apiserver`. Only the gRPC one was reachable from our code —
+  `govulncheck` traced it through the Postgres audit sink's shutdown path — and
+  the scan is now clean of reachable findings.
+
+### Fixed
+
+- **CI's vulnerability scan had not run since the Go 1.26 toolchain bump.** The
+  step pinned `govulncheck@v1.1.3`, which no longer compiles against a current
+  toolchain, and `continue-on-error: true` swallowed the failure, so the build
+  stayed green while nothing was scanned. That is why the CVEs above surfaced
+  through Artifact Hub's image scan rather than the pipeline. It now installs
+  `@latest` and is allowed to fail the build.
+- Dependabot now tracks indirect dependencies (`allow: dependency-type: all`).
+  Every CVE this repo has had came in through one, and the default direct-only
+  setting would never have proposed these bumps.
+
 ## [0.4.1] - 2026-08-25
 
 ### Added

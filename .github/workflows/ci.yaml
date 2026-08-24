@@ -53,13 +53,22 @@ jobs:
         if: steps.detect.outputs.present == 'true'
         run: make verify-manifests
 
-      # Dependency/stdlib vulnerability scan. Non-blocking: stdlib findings track
-      # the Go toolchain patch level and should inform, not gate, the pipeline.
+      # Dependency/stdlib vulnerability scan.
+      #
+      # This step was pinned to govulncheck@v1.1.3, which stopped compiling when
+      # the toolchain moved to Go 1.26+ (its vendored x/tools is too old). With
+      # continue-on-error the failure was swallowed and the scan silently stopped
+      # running — three CVEs in transitive deps only surfaced via Artifact Hub's
+      # image scan. Installed with @latest so it tracks the toolchain, and no
+      # longer allowed to fail quietly.
+      #
+      # Only findings govulncheck proves are reachable from our code fail the
+      # build; unreachable ones in imported packages are reported but tolerated,
+      # which is what -show=traces distinguishes.
       - name: govulncheck
         if: steps.detect.outputs.present == 'true'
-        continue-on-error: true
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@v1.1.3
+          go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
 
       # `make test` wires up envtest (etcd + kube-apiserver) for controller tests.
