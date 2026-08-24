@@ -70,7 +70,8 @@ The reconciliation loop for a single `ReactivePolicy`:
         │   └─> If threshold not crossed: requeue at pollInterval, exit
         │
 [5]     ├─> Threshold crossed: enter action pipeline
-        │   ├─> For each action in spec.actions:
+        │   ├─> Find the first action with requiresApproval (the gate)
+        │   ├─> For each action up to the gate (or all, if there is none):
         │   │   ├─> Look up plugin in registry
         │   │   ├─> Validate params
         │   │   ├─> Execute action with target context
@@ -78,7 +79,13 @@ The reconciliation loop for a single `ReactivePolicy`:
         │   │   └─> On failure: apply failurePolicy (continue/stop/rollback)
         │   │
 [6]     ├─> Write ActionAudit record(s)
-        ├─> Update status.lastTriggeredAt, status.triggerCount++
+        │   └─> Gated: written in Pending phase, carrying the held plugins,
+        │       the resolved targets, and an expiry. Pipeline stops here.
+        ├─> Update status.triggerCount++
+        │   ├─> Gated: status.pendingGateRef, state=AwaitingApproval,
+        │   │   and lastTriggeredAt is NOT set — cooldown starts at the
+        │   │   decision, not here
+        │   └─> Ungated: status.lastTriggeredAt
         ├─> Emit Kubernetes Event
         ├─> Increment internal Prometheus counters
         │
@@ -87,6 +94,13 @@ The reconciliation loop for a single `ReactivePolicy`:
 
 Step 6 is critical for the audit trail. Even if action execution fails halfway,
 the controller MUST write what happened before the reconcile returns.
+
+A gated pipeline finishes in the **ActionAudit** reconciler rather than here.
+When a decision lands (or the gate expires), it runs or skips the held actions,
+appends their outcomes to the same record, and starts the policy's cooldown from
+that moment. While `status.pendingGateRef` is set the policy reconciler exits at
+step 2 without evaluating, so a metric that stays bad cannot queue a second gate
+behind the first. See ADR-011.
 
 ## 3. Plugin architecture
 
@@ -161,9 +175,26 @@ Called on CREATE and UPDATE of `ReactivePolicy`. It:
 - Rejects policies with cooldown < 30s (sanity floor)
 - Rejects policies with `pollInterval < 10s`
 
-### 5.2 MutatingWebhook (v0.2+, not in v0.1)
+### 5.2 MutatingWebhook — approval decisions
 
-Future: inject defaults that aren't expressible in the CRD schema.
+Registered on `UPDATE` of `ActionAudit` at
+`/mutate-reactive-policy-io-v1alpha1-actionaudit`.
+
+It exists because Kubernetes does not persist *who* set a field. If the
+approver's identity were an ordinary field, anyone able to record a decision
+could also record whose decision it was. The handler reads
+`AdmissionRequest.UserInfo` instead and stamps `spec.gate.decidedBy` and
+`decidedAt`, overwriting whatever the client sent. Clients choose the verdict;
+the API server decides whose name goes next to it.
+
+It also enforces the gate's shape: only the operator may open or remove a gate,
+a decision is write-once, and a gate that has expired or already reached a
+terminal phase admits no verdict.
+
+Both webhooks are optional (`ENABLE_WEBHOOKS`, `webhook.enabled` in the chart).
+With them off, gates still hold pipelines and still expire closed, but the
+identity and write-once guarantees are gone — the operator logs a warning at
+startup.
 
 ## 6. State and persistence
 
@@ -174,9 +205,16 @@ The operator is stateless. All state lives in the cluster as Kubernetes objects:
 - Kubernetes Events — short-term operational visibility
 - Annotations on target resources — for actions that annotate
 
-We do NOT use a database, S3, or any external storage. If a user wants
-longer-than-30-day audit retention, they export `ActionAudit` records to their
-SIEM via standard K8s API consumption.
+`ActionAudit` is written once and never touched again, with one exception: a
+gated record is completed by the operator when its approval resolves, appending
+the outcomes of the actions it held (ADR-011). That is why the admission webhook
+restricts what a client may change on a record rather than freezing it outright.
+
+No external storage is required — the CRD is always the source of truth. Since
+v0.3 an optional, off-by-default sink can forward outcomes to Postgres for
+longer retention and analytics (`--audit-sink=postgres`); sink errors are logged
+and never fail a reconcile. Without it, longer-than-retention history is
+exported from the K8s API into a SIEM like any other object.
 
 ## 7. Concurrency and races
 
@@ -217,9 +255,16 @@ reactive_policy_triggered_policies_total{namespace}
 reactive_policy_rate_limited_total{namespace}
 reactive_policy_prometheus_query_errors_total
 reactive_policy_plugin_validation_errors_total{plugin}
+reactive_policy_approval_gates_opened_total{namespace}
+reactive_policy_approval_decisions_total{namespace, outcome}
+reactive_policy_approval_wait_seconds{outcome}
+reactive_policy_approval_gates_pending{namespace}
 ```
 
-The Grafana dashboard in `observability/` visualizes all of these.
+The Grafana dashboard in `observability/` visualizes these, and
+`prometheus-rules.yaml` ships example alerts. The one worth wiring to a pager is
+`reactive_policy_approval_gates_pending`: a gate nobody answers is a pipeline
+stalled mid-incident, and it expires closed rather than acting.
 
 ## 9. Testing strategy
 

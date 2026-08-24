@@ -44,7 +44,7 @@ help: ## Display this help.
 ##@ Development
 
 .PHONY: manifests
-manifests: controller-gen sync-crds ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
+manifests: controller-gen sync-crds sync-alerts ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 
 .PHONY: generate-manifests
 generate-manifests: controller-gen
@@ -57,6 +57,13 @@ sync-crds: generate-manifests ## Copy the generated CRDs into the Helm chart.
 	# have to be refreshed whenever the API changes — a stale copy silently
 	# prunes new fields on a chart install.
 	cp config/crd/bases/*.yaml charts/reactive-policy/crds/
+
+.PHONY: sync-alerts
+sync-alerts: ## Copy the example alert rules into the Helm chart.
+	# The chart's PrometheusRule embeds this file verbatim via .Files.Get, so the
+	# rules are written once in observability/ instead of being duplicated in the
+	# template — which is how the chart copy fell behind in the first place.
+	cp observability/prometheus-rules.yaml charts/reactive-policy/files/prometheus-rules.yaml
 
 .PHONY: verify-manifests
 verify-manifests: manifests generate ## Fail if generated output is not committed.

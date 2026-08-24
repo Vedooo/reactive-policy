@@ -67,10 +67,30 @@ spec:
 | `kube-prometheus-stack.enabled` | `true` | Install the bundled monitoring stack. Set `false` to bring your own. |
 | `reactive-policy.serviceMonitor.enabled` | `true` | Scrape the operator's own metrics. |
 | `reactive-policy.prometheusRule.enabled` | `true` | Install the operator's example alert rules. |
+| `reactive-policy.webhook.enabled` | `false` | Enable the admission webhooks (needs cert-manager). |
 
 Any value of the [reactive-policy](https://artifacthub.io/packages/helm/reactive-policy/reactive-policy)
 operator chart can be set under the `reactive-policy:` key, and any
 kube-prometheus-stack value under `kube-prometheus-stack:`.
+
+## Admission webhooks (optional)
+
+Off by default, and not bundled: unlike Prometheus and Postgres, the stack does
+not ship cert-manager as a subchart. Install cert-manager yourself, then turn
+the webhooks on through the operator chart's values:
+
+```bash
+helm upgrade --install reactive-policy-stack \
+  oci://ghcr.io/vedooo/charts/reactive-policy-stack \
+  --namespace reactive-policy --create-namespace \
+  --set reactive-policy.webhook.enabled=true
+```
+
+This validates policies at admission and, if you use approval gates, stamps the
+approver's identity from the authenticated request. Without it a gate still
+holds the pipeline but cannot prove who approved. See the
+[operator chart README](https://github.com/Vedooo/reactive-policy/blob/main/charts/reactive-policy/README.md#admission-webhooks)
+for the bring-your-own-certificate options.
 
 ## Links
 
