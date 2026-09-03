@@ -6,6 +6,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Dependabot holds back `k8s.io/*` minor and major bumps until
+  `controller-runtime` ships a matching release. They are upgraded as a pair
+  (as in v0.2, which moved k8s 1.36 and controller-runtime 0.24 together);
+  taking k8s 0.37 while controller-runtime is still on the 0.24 line would be an
+  unsupported combination, and envtest — pinned to `ENVTEST_K8S_VERSION` — would
+  not catch it. Patch releases are unaffected.
+
 ### Security
 
 - Bump three transitive dependencies flagged in the published image's
