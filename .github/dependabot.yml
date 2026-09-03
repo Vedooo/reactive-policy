@@ -11,6 +11,19 @@ updates:
     # the default direct-only setting never proposes those bumps.
     allow:
       - dependency-type: "all"
+    # k8s.io/* minor bumps are held back until controller-runtime ships the
+    # release that matches them. The two are a matched pair — v0.2 upgraded
+    # k8s 1.36 and controller-runtime 0.24 together for exactly this reason —
+    # and controller-runtime has no 0.37-compatible release yet, so taking
+    # k8s 0.37 alone would put the operator on an unsupported combination that
+    # envtest (pinned to ENVTEST_K8S_VERSION) would not catch. Patch releases
+    # still come through. Remove this block when upgrading both together, and
+    # bump ENVTEST_K8S_VERSION in the Makefile in the same change.
+    ignore:
+      - dependency-name: "k8s.io/*"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-major"
     labels:
       - "dependencies"
       - "go"
